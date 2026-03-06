@@ -43,7 +43,7 @@ function ModeBadge({ mode, candidatureUrl }: { mode: Mode; candidatureUrl?: stri
 
 function detectMode(offer: OfferTableItem): Mode {
   if (offer.candidature_url) return 'portail_tiers'
-  if (offer.url?.includes('emploi.fhf.fr')) return 'plateforme'
+  if (offer.url?.includes('emploi.fhf.fr') || offer.url?.includes('emploi-territorial.fr')) return 'plateforme'
   if (offer.contact_email) return 'email'
   if (offer.url) return 'plateforme'
   return 'inconnu'
@@ -357,15 +357,28 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
                 </button>
               </>
             )}
-            {mode === 'plateforme' && (
-              <button
-                onClick={handlePlatform}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-60 transition-colors"
-              >
-                <ExternalLink size={14} />
-                Aller sur la plateforme
-              </button>
+            {mode === 'plateforme' && !isAutoSupported && (
+              <>
+                {email && (
+                  <button
+                    onClick={handleEmailClient}
+                    disabled={loading}
+                    title="Fallback : envoyer par email"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-blue-300 text-blue-700 text-sm font-medium hover:bg-blue-50 disabled:opacity-60 transition-colors"
+                  >
+                    <Mail size={14} />
+                    Client mail
+                  </button>
+                )}
+                <button
+                  onClick={handlePlatform}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-60 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                  Aller sur la plateforme
+                </button>
+              </>
             )}
             {mode === 'portail_tiers' && (
               <>

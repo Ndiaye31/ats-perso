@@ -32,13 +32,13 @@ def _auto_apply_error(code: str, action: str, reason: str) -> str:
 def _detect_mode(offer: Offer) -> str:
     """Détermine si la candidature se fait par email, plateforme ou portail tiers.
 
-    Pour emploi.fhf.fr : l'email scrappé est du contact informatif.
-    La candidature se fait via le bouton 'Je candidate!' sur la plateforme FHF,
-    sauf si une URL externe (portail_tiers) est explicitement renseignée.
+    Pour emploi.fhf.fr et emploi-territorial.fr : la candidature via la
+    plateforme est prioritaire (upload CV + LM). L'email reste accessible
+    comme fallback dans l'interface.
     """
     if offer.candidature_url:
         return "portail_tiers"
-    if offer.url and "emploi.fhf.fr" in offer.url:
+    if offer.url and ("emploi.fhf.fr" in offer.url or "emploi-territorial.fr" in offer.url):
         return "plateforme"
     if offer.contact_email:
         return "email"
