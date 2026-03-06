@@ -971,3 +971,69 @@ Nouveau sélecteur (`:visible` pour cibler uniquement le bouton visible) :
 
 - Dry-run OK : screenshot confirme textarea rempli + bouton visible
 - Envoi réel OK : candidature "RESPONSABLE PRODUCTION ALIMENTAIRE" envoyée avec succès sur emploi.fhf.fr
+
+---
+
+## 2026-03-06 — Détection mode email, fallback auto-apply, actions portail tiers
+
+### 1. Détection de mode : email redevient prioritaire
+
+**Problème :** Le commit `5b1cdd7` forçait `plateforme` pour toutes les URLs emploi-territorial/FHF, même quand l'offre n'avait pas de bouton "Déposer ma candidature" et ne proposait qu'un email. Résultat : le mode `email` n'apparaissait plus du tout pour ces offres.
+
+**Correction :** Retour à la logique email-first dans `_detect_mode()` (backend) et `detectMode()` (frontend) :
+1. `candidature_url` → `portail_tiers`
+2. `contact_email` → `email`
+3. `url` → `plateforme`
+4. sinon → `inconnu`
+
+24 candidatures existantes corrigées de `plateforme` → `email` en base.
+
+### 2. Fallback email automatique dans auto-apply
+
+**Problème :** Certaines offres emploi-territorial n'ont pas de bouton "Déposer ma candidature" sur leur page. L'auto-apply Playwright échouait à `find_apply_button` sans proposer d'alternative.
+
+**Correction :** Dans `_auto_apply_with_db()` (`app/routers/candidatures.py`), quand `find_apply_button` échoue :
+- Si un email de contact existe → envoi automatique par email (CV + LM en pièce jointe via SMTP)
+- Mode candidature mis à jour vers `email`, statut → `envoyée`
+- Log structuré avec `event=candidature_auto_apply_email_fallback`
+- Si aucun email → erreur explicite (comme avant)
+
+Ce fallback fonctionne aussi dans les opérations **bulk** (`bulk-auto-apply`, `bulk-generate-lm-and-auto-apply`).
+
+### 3. Frontend : boutons email visibles pour sites auto-supportés
+
+**Fichier :** `frontend/src/components/ApplyModal.tsx`
+
+- `isAutoSupported` ne filtre plus sur `mode === 'plateforme'` — il suffit que l'URL soit emploi-territorial ou FHF
+- Bouton **Email** affiché à côté des boutons Test/Auto-postuler quand un email de contact existe
+- L'utilisateur peut choisir : auto-apply (avec fallback email intégré) ou envoi email direct
+
+### 4. Séparation des actions portail tiers
+
+**Problème :** Le bouton "Aller sur le portail tiers" marquait automatiquement la candidature comme `envoyée`, alors que l'utilisateur n'avait pas encore postulé sur le portail externe.
+
+**Correction :** Deux boutons distincts :
+- **"Aller sur le portail"** → ouvre le lien externe, ne change pas le statut
+- **"Confirmer envoyée"** → marque comme envoyée une fois la candidature effectuée manuellement
+
+### 5. Audit de production
+
+Audit réalisé pour évaluer la mise en production :
+
+**OK :** `.env` gitignored, gestion d'erreurs centralisée, healthcheck DB, logging structuré, config validée au startup.
+
+**À faire pour un déploiement serveur :**
+- Ajouter un reverse proxy (nginx/caddy) pour HTTPS + serving frontend static
+- Créer un `docker-compose.prod.yml` (sans `--reload`, sans volume source)
+- Changer le mot de passe DB par défaut
+- Ajouter des workers Uvicorn (un seul actuellement, bloqué pendant les auto-apply Playwright)
+- Mettre en place un backup DB
+
+**Suffisant pour un usage localhost** (usage personnel sur PC).
+
+### Validation
+
+- Build frontend OK
+- Build API Docker OK
+- 4 candidatures brouillon testées et envoyées (2 auto-apply + 2 email)
+- Commit : `bd7cb11`
