@@ -1,7 +1,8 @@
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -57,7 +58,14 @@ def list_offers_table(
         .scalar_subquery()
     )
 
-    conditions = [Offer.id.notin_(sent_offer_ids)]
+    # Exclure les offres dont la date limite est dépassée (format dd/mm/yyyy)
+    today_str = date.today().strftime("%d/%m/%Y")
+    not_expired = or_(
+        Offer.date_limite.is_(None),
+        func.to_date(Offer.date_limite, "DD/MM/YYYY") >= date.today(),
+    )
+
+    conditions = [Offer.id.notin_(sent_offer_ids), not_expired]
 
     if min_score > 0:
         conditions.append(Offer.score >= min_score)

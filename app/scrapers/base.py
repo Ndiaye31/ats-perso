@@ -142,6 +142,8 @@ class BaseScraper:
                     if not email:
                         email = detail.get("email")
                     candidature_url = detail.get("candidature_url")
+                    if not date_limite:
+                        date_limite = detail.get("date_limite")
                     known_hashes.add(h)
 
             offers.append(
@@ -262,7 +264,21 @@ class BaseScraper:
                 if email:
                     break
 
-        return {"description": description, "email": email, "candidature_url": candidature_url}
+        # 5. Date limite de candidature — emploi-territorial.fr (.offre-item)
+        date_limite = None
+        for row in soup.select(".offre-item"):
+            label_el = row.select_one(".offre-item-label, .offre-item-text:first-child")
+            label = label_el.get_text(strip=True).lower() if label_el else ""
+            if "date limite" in label:
+                value_el = row.select_one(".offre-item-value, .offre-item-text:last-child")
+                if value_el:
+                    raw = value_el.get_text(strip=True)
+                    m = re.search(r"(\d{2}/\d{2}/\d{4})", raw)
+                    if m:
+                        date_limite = m.group(1)
+                break
+
+        return {"description": description, "email": email, "candidature_url": candidature_url, "date_limite": date_limite}
 
     # ── helpers ──────────────────────────────────────────────────────────────
 
