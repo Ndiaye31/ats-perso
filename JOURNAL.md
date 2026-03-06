@@ -933,3 +933,41 @@ export function autoApply(candidatureId: string, dryRun = false)
   - `POST /offres/score` OK
 
 Sprint 3 est terminé à 100%.
+
+---
+
+## 2026-03-06 — Fix auto-apply FHF (bouton submit invisible)
+
+### Problème
+
+L'auto-apply Playwright pour les offres `emploi.fhf.fr` échouait systématiquement à l'étape `submit` avec un timeout de 30 secondes (`AUTOAPPLY_SUBMIT_FAILED`).
+
+### Diagnostic
+
+Le site FHF utilise Drupal qui génère **deux éléments** "Envoyer ma candidature" :
+- `<input type="submit">` — **caché** (hidden, utilisé en interne par Drupal AJAX)
+- `<button type="button">` — **visible** (le vrai bouton cliquable)
+
+Le sélecteur `input[value*='Envoyer']` dans `EmploiFHFApplicator.submit()` matchait l'input invisible en premier → Playwright attendait qu'il devienne visible → timeout → échec.
+
+### Correction
+
+**Fichier :** `app/automation/emploi_fhf.py` — méthode `submit()`
+
+Ancien sélecteur :
+```python
+"button:has-text('Envoyer ma candidature'), "
+"input[value*='Envoyer'], "
+"button:has-text('Envoyer')"
+```
+
+Nouveau sélecteur (`:visible` pour cibler uniquement le bouton visible) :
+```python
+"button:has-text('Envoyer ma candidature'):visible, "
+"button:has-text('Envoyer'):visible"
+```
+
+### Validation
+
+- Dry-run OK : screenshot confirme textarea rempli + bouton visible
+- Envoi réel OK : candidature "RESPONSABLE PRODUCTION ALIMENTAIRE" envoyée avec succès sur emploi.fhf.fr

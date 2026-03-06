@@ -72,12 +72,15 @@ class EmploiFHFApplicator(BaseApplicator):
             return False
 
     async def submit(self, page) -> bool:
-        """Clique sur 'Envoyer ma candidature'."""
+        """Clique sur 'Envoyer ma candidature'.
+
+        Drupal génère un <input type=submit> caché + un <button> visible.
+        On cible le bouton visible pour éviter un timeout sur l'input hidden.
+        """
         try:
             btn = page.locator(
-                "button:has-text('Envoyer ma candidature'), "
-                "input[value*='Envoyer'], "
-                "button:has-text('Envoyer')"
+                "button:has-text('Envoyer ma candidature'):visible, "
+                "button:has-text('Envoyer'):visible"
             ).first
             if await btn.count() > 0:
                 await btn.click()
