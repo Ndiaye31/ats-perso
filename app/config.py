@@ -26,6 +26,10 @@ class Settings(BaseSettings):
 
     scheduler_enabled: bool = False
     scheduler_scrape_interval_s: int = 3600
+    scheduler_scrape_weekdays_only: bool = True
+    scheduler_scrape_hour: int = 8
+    scheduler_scrape_minute: int = 0
+    scheduler_timezone: str = "Europe/Paris"
     scheduler_rescore_interval_s: int = 3600
     scheduler_batch_enabled: bool = False
     scheduler_batch_interval_s: int = 7200

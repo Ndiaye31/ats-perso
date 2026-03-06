@@ -22,7 +22,7 @@ const MODE_OPTIONS = [
   { value: 'portail_tiers', label: 'Portail tiers' },
   { value: 'inconnu', label: 'Inconnu' },
 ]
-const PAGE_SIZE = 100
+const PAGE_SIZE = 20
 
 interface Props {
   onCandidatureCreated: () => void

@@ -5,6 +5,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
+from app.models.candidature import Candidature
 from app.models.offer import Offer
 from app.models.source import Source
 from app.schemas.offer import OfferRead, OfferTableResponse
@@ -49,7 +50,14 @@ def list_offers_table(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    conditions = []
+    # Exclure les offres ayant une candidature envoyée (visibles uniquement dans Candidatures)
+    sent_offer_ids = (
+        select(Candidature.offer_id)
+        .where(Candidature.statut == "envoyée")
+        .scalar_subquery()
+    )
+
+    conditions = [Offer.id.notin_(sent_offer_ids)]
 
     if min_score > 0:
         conditions.append(Offer.score >= min_score)
