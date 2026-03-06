@@ -24,7 +24,7 @@
 
 ## Sprint 2 — Sécurité et configuration
 
-- [ ] Sortir les secrets des fichiers versionnés
+- [x] Sortir les secrets des fichiers versionnés
   - Validation: aucun secret détecté par push protection.
 - [x] Ajouter un `.env.example` complet sans secrets
   - Validation: toutes variables requises documentées.
@@ -85,7 +85,7 @@
 | 2026-03-06 | Sprint 1 | Run bout-en-bout (terminé) | `python scripts/validate_pipeline.py --base-url http://127.0.0.1:8000 --run-email-test` (global OK) + `scripts/screenshots/validation_dry_run_20260306_162109.png` | local |
 | 2026-03-06 | Sprint 1 | Screenshot systématique auto-apply | `python -m unittest -v tests.test_candidatures_plateformes tests.test_candidatures_api` (16 OK) | local |
 | 2026-03-06 | Sprint 1 | Rapport JSON batch par candidature | `python -m unittest -v tests.test_candidatures_api` (9 OK) | local |
-| 2026-03-06 | Sprint 2 | Sortie des secrets des fichiers versionnés (en cours) | Secrets supprimés de `.env`; vérification locale: `rg -n "sk-|GOCSPX|refresh_token"` `.env .env.example` (aucune fuite) | local |
+| 2026-03-06 | Sprint 2 | Sortie des secrets des fichiers versionnés | Historique Git réécrit (`main`), `.env` retiré de l'index, vérif: `git rev-list --all -- .env` (commits assainis uniquement) + `git grep -n -I -E "sk-ant-api|GOCSPX|Jobdata2023|Candidature2026@|ssmg bbqz|1//03GgQtk" $(git rev-list --all)` (aucune fuite réelle) | `0163c87` |
 | 2026-03-06 | Sprint 2 | `.env.example` complet sans secrets | Variables documentées: DB, IA, auto-apply, fichiers CV/diplôme, retries, SMTP, Gmail OAuth2 | local |
 | 2026-03-06 | Sprint 2 | Vérifications au démarrage API | `python -c "import app.config as c; c.settings.cv_path='C:/__missing__/cv.pdf'; c.validate_startup_config()"` -> `RuntimeError` explicite | local |
 | 2026-03-06 | Sprint 2 | `.gitignore` renforcé + artefacts non suivis | `git status --short --ignored` -> `!! frontend/dist/`, `!! scripts/screenshots/`, `!! config/gmail_credentials.json` | local |
@@ -93,8 +93,8 @@
 ## Suivi global
 
 - Sprint 1: 100% (tâches 1 à 5 terminées)
-- Sprint 2: 75% (3/4 terminées, secrets en cours)
+- Sprint 2: 100% (tâches 1 à 4 terminées)
 - Sprint 3: 0%
 - Sprint 4: 25% (travaux UI avancés, tests frontend à compléter)
 - Sprint 5: 0%
-- Avancement total estimé: 40%
+- Avancement total estimé: 50%
