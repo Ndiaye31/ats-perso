@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     gmail_client_secret: str = ""
     gmail_refresh_token: str = ""
 
+    scheduler_enabled: bool = False
+    scheduler_scrape_interval_s: int = 3600
+    scheduler_rescore_interval_s: int = 3600
+    scheduler_batch_enabled: bool = False
+    scheduler_batch_interval_s: int = 7200
+    scheduler_batch_limit: int = 10
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

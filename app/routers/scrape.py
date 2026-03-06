@@ -1,4 +1,5 @@
 import uuid
+import logging
 from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,12 +9,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.offer import Offer
 from app.models.source import Source
+from app.logging_utils import log_event
 from app.profil import profil
 from app.scoring import MIN_SCORE, score_offer
 from app.scrapers.base import BaseScraper, ScraperConfig, load_configs
 from app.utils import compute_content_hash
 
 router = APIRouter(prefix="/offres", tags=["scraping"])
+logger = logging.getLogger(__name__)
 
 
 def _load_known_hashes(db: Session) -> set[str]:
@@ -25,29 +28,49 @@ def _load_known_hashes(db: Session) -> set[str]:
 @router.post("/scrape")
 def scrape_all(db: Session = Depends(get_db)) -> dict:
     """Scrape tous les sites configurés dans config/scrapers.yml."""
+    start = perf_counter()
     configs = load_configs()
     known_hashes = _load_known_hashes(db)
     results = {}
     for config in configs:
         results[config.name] = _scrape_source(db, config, known_hashes)
     db.commit()
+    log_event(
+        logger,
+        logging.INFO,
+        "scrape_all_completed",
+        source="all",
+        duration_ms=round((perf_counter() - start) * 1000, 2),
+        sources_count=len(configs),
+    )
     return results
 
 
 @router.post("/scrape/{source_name}")
 def scrape_one(source_name: str, db: Session = Depends(get_db)) -> dict:
     """Scrape un site spécifique par son nom (ex: emploi-territorial.fr)."""
+    start = perf_counter()
     configs = {c.name: c for c in load_configs()}
     if source_name not in configs:
         raise HTTPException(status_code=404, detail=f"Source '{source_name}' introuvable dans scrapers.yml")
     known_hashes = _load_known_hashes(db)
     result = _scrape_source(db, configs[source_name], known_hashes)
     db.commit()
+    log_event(
+        logger,
+        logging.INFO,
+        "scrape_one_completed",
+        source=source_name,
+        duration_ms=round((perf_counter() - start) * 1000, 2),
+        inserted=result.get("inserted"),
+        skipped=result.get("skipped"),
+    )
     return result
 
 
 def _scrape_source(db: Session, config: ScraperConfig, known_hashes: set[str]) -> dict:
     start = perf_counter()
+    log_event(logger, logging.INFO, "scrape_source_started", source=config.name)
     source = db.query(Source).filter_by(name=config.name).first()
     if not source:
         source = Source(id=uuid.uuid4(), name=config.name, url=config.base_url)
@@ -123,7 +146,7 @@ def _scrape_source(db: Session, config: ScraperConfig, known_hashes: set[str]) -
     insert_seconds = perf_counter() - t_insert_start
 
     total_seconds = perf_counter() - start
-    return {
+    result = {
         "inserted": inserted,
         "skipped": skipped,
         "total_scraped": len(raw_offers),
@@ -133,3 +156,14 @@ def _scrape_source(db: Session, config: ScraperConfig, known_hashes: set[str]) -
             "total_seconds": round(total_seconds, 3),
         },
     }
+    log_event(
+        logger,
+        logging.INFO,
+        "scrape_source_completed",
+        source=config.name,
+        duration_ms=round(total_seconds * 1000, 2),
+        inserted=inserted,
+        skipped=skipped,
+        total_scraped=len(raw_offers),
+    )
+    return result

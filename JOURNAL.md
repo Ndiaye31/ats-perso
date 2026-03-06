@@ -870,3 +870,66 @@ export function autoApply(candidatureId: string, dryRun = false)
 
 - Build frontend validé à chaque étape:
   - `npm run build` ✅
+
+---
+
+## Session du 06/03/2026 — Sprint 3 (Observabilité et exploitation)
+
+### 1. Logs structurés backend
+
+- Ajout d'une brique de log JSON corrélable:
+  - `app/logging_utils.py` avec `log_event(...)`
+- Instrumentation des actions critiques:
+  - scraping (`app/routers/scrape.py`)
+  - candidatures (création, génération LM, envoi email, auto-apply) (`app/routers/candidatures.py`)
+- Contextes portés dans les logs:
+  - `offer_id`, `candidature_id`, `source`, `duration_ms`, `event`
+
+### 2. Endpoint `/health` enrichi
+
+- `app/routers/health.py` étendu avec checks détaillés:
+  - check DB (`SELECT 1`)
+  - check config minimale (variables critiques + chemins CV/diplôme)
+- Réponse:
+  - HTTP 200 si OK global
+  - HTTP 503 si KO avec détail par check
+
+### 3. Jobs planifiés
+
+- Scheduler backend intégré:
+  - `app/scheduler.py`
+  - démarrage/arrêt au lifecycle API dans `app/main.py`
+- Jobs:
+  - scrape périodique
+  - rescore périodique
+  - batch LM optionnel (activable par env)
+- Config ajoutée:
+  - `SCHEDULER_ENABLED`, `SCHEDULER_SCRAPE_INTERVAL_S`, `SCHEDULER_RESCORE_INTERVAL_S`
+  - `SCHEDULER_BATCH_ENABLED`, `SCHEDULER_BATCH_INTERVAL_S`, `SCHEDULER_BATCH_LIMIT`
+- Exécution locale:
+  - script `scripts/run_scheduled_jobs_once.py --simulate`
+- Documentation:
+  - `docs/SCHEDULER.md`
+
+### 4. Stratégie d'alerte minimale (erreurs critiques)
+
+- Ajout d'une alerte critique centralisée:
+  - `emit_critical_alert(...)` dans `app/logging_utils.py`
+- Handlers globaux FastAPI dans `app/main.py`:
+  - HTTP 5xx -> log `CRITICAL` + `alert_code=HTTP_5XX` + `incident_id`
+  - exception non gérée -> log `CRITICAL` + `alert_code=UNHANDLED_EXCEPTION` + `incident_id`
+- Objectif atteint:
+  - une erreur critique est immédiatement visible sans lire toute la stack
+
+### Validation globale Sprint 3
+
+- Tests:
+  - `python -m unittest -v tests.test_alerting tests.test_scheduler tests.test_health_api tests.test_candidatures_plateformes tests.test_candidatures_api tests.test_email_sender`
+  - **25 tests OK**
+- Vérification Docker production-like:
+  - `docker compose up -d` OK
+  - `GET /health` OK
+  - `POST /offres/scrape` OK
+  - `POST /offres/score` OK
+
+Sprint 3 est terminé à 100%.

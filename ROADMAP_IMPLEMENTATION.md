@@ -35,13 +35,13 @@
 
 ## Sprint 3 — Observabilité et exploitation
 
-- [ ] Ajouter logs structurés backend (contextes: offer_id, candidature_id, source, durée)
+- [x] Ajouter logs structurés backend (contextes: offer_id, candidature_id, source, durée)
   - Validation: logs lisibles et corrélables par action.
-- [ ] Enrichir `/health` avec checks DB/config minimale
+- [x] Enrichir `/health` avec checks DB/config minimale
   - Validation: endpoint distingue état OK/KO avec détail.
-- [ ] Ajouter jobs planifiés (scrape, rescore, batch optionnel)
+- [x] Ajouter jobs planifiés (scrape, rescore, batch optionnel)
   - Validation: planification documentée + exécution vérifiée localement.
-- [ ] Définir stratégie d'alerte minimale (erreurs critiques)
+- [x] Définir stratégie d'alerte minimale (erreurs critiques)
   - Validation: erreur critique visible sans lire toute la stack.
 
 ## Sprint 4 — Qualité UI et tests
@@ -89,12 +89,16 @@
 | 2026-03-06 | Sprint 2 | `.env.example` complet sans secrets | Variables documentées: DB, IA, auto-apply, fichiers CV/diplôme, retries, SMTP, Gmail OAuth2 | local |
 | 2026-03-06 | Sprint 2 | Vérifications au démarrage API | `python -c "import app.config as c; c.settings.cv_path='C:/__missing__/cv.pdf'; c.validate_startup_config()"` -> `RuntimeError` explicite | local |
 | 2026-03-06 | Sprint 2 | `.gitignore` renforcé + artefacts non suivis | `git status --short --ignored` -> `!! frontend/dist/`, `!! scripts/screenshots/`, `!! config/gmail_credentials.json` | local |
+| 2026-03-06 | Sprint 3 | Logs structurés backend (offer_id, candidature_id, source, durée) | `python -m unittest -v tests.test_candidatures_plateformes tests.test_candidatures_api tests.test_email_sender` (19 OK) + probe `log_event(...)` -> JSON corrélable | local |
+| 2026-03-06 | Sprint 3 | `/health` enrichi (DB + config minimale) | `python -m unittest -v tests.test_health_api` (2 OK) + statut HTTP `200/503` selon checks | local |
+| 2026-03-06 | Sprint 3 | Jobs planifiés (scrape, rescore, batch optionnel) | `python -m unittest -v tests.test_scheduler tests.test_health_api tests.test_candidatures_plateformes tests.test_candidatures_api tests.test_email_sender` (23 OK) + `python scripts/run_scheduled_jobs_once.py --simulate` | local |
+| 2026-03-06 | Sprint 3 | Stratégie d'alerte minimale (erreurs critiques) | `python -m unittest -v tests.test_alerting tests.test_scheduler tests.test_health_api tests.test_candidatures_plateformes tests.test_candidatures_api tests.test_email_sender` (25 OK); logs CRITICAL JSON + `alert_code`/`incident_id` en réponse 5xx | local |
 
 ## Suivi global
 
 - Sprint 1: 100% (tâches 1 à 5 terminées)
 - Sprint 2: 100% (tâches 1 à 4 terminées)
-- Sprint 3: 0%
+- Sprint 3: 100% (tâches 1 à 4 terminées)
 - Sprint 4: 25% (travaux UI avancés, tests frontend à compléter)
 - Sprint 5: 0%
-- Avancement total estimé: 50%
+- Avancement total estimé: 75%

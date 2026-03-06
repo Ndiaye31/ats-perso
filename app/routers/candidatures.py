@@ -1,9 +1,11 @@
 import uuid
 import asyncio
 import json
+import logging
 from datetime import date
 from typing import Optional
 from pathlib import Path
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -14,9 +16,11 @@ from app.database import get_db
 from app.models.candidature import Candidature
 from app.models.offer import Offer
 from app.profil import profil
+from app.logging_utils import log_event
 from app.schemas.candidature import CandidatureRead
 
 router = APIRouter(prefix="/candidatures", tags=["candidatures"])
+logger = logging.getLogger(__name__)
 
 
 def _auto_apply_error(code: str, action: str, reason: str) -> str:
@@ -176,6 +180,7 @@ def get_candidature_by_offer(offer_id: uuid.UUID, db: Session = Depends(get_db))
 
 @router.post("", response_model=CandidatureRead, status_code=201)
 def create_candidature(body: CandidatureCreate, db: Session = Depends(get_db)):
+    start = perf_counter()
     offer = db.get(Offer, body.offer_id)
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
@@ -187,6 +192,15 @@ def create_candidature(body: CandidatureCreate, db: Session = Depends(get_db)):
         .order_by(Candidature.created_at.desc())
     ).scalar_one_or_none()
     if existing:
+        log_event(
+            logger,
+            logging.INFO,
+            "candidature_create_idempotent",
+            offer_id=body.offer_id,
+            candidature_id=existing.id,
+            source="api",
+            duration_ms=round((perf_counter() - start) * 1000, 2),
+        )
         return existing
     candidature = Candidature(
         id=uuid.uuid4(),
@@ -198,6 +212,15 @@ def create_candidature(body: CandidatureCreate, db: Session = Depends(get_db)):
     db.add(candidature)
     db.commit()
     db.refresh(candidature)
+    log_event(
+        logger,
+        logging.INFO,
+        "candidature_created",
+        offer_id=body.offer_id,
+        candidature_id=candidature.id,
+        source="api",
+        duration_ms=round((perf_counter() - start) * 1000, 2),
+    )
     return candidature
 
 
@@ -238,6 +261,7 @@ class SendEmailResponse(BaseModel):
 @router.post("/{candidature_id}/send-email", response_model=SendEmailResponse)
 def send_email_endpoint(candidature_id: uuid.UUID, db: Session = Depends(get_db)):
     """Envoie la candidature par email SMTP Gmail (CV en pièce jointe, LM en corps)."""
+    start = perf_counter()
     candidature = db.get(Candidature, candidature_id)
     if not candidature:
         raise HTTPException(status_code=404, detail="Candidature not found")
@@ -272,6 +296,15 @@ def send_email_endpoint(candidature_id: uuid.UUID, db: Session = Depends(get_db)
     candidature.statut = "envoyée"
     candidature.date_envoi = date.today()
     db.commit()
+    log_event(
+        logger,
+        logging.INFO,
+        "candidature_email_sent",
+        offer_id=candidature.offer_id,
+        candidature_id=candidature_id,
+        source="email",
+        duration_ms=round((perf_counter() - start) * 1000, 2),
+    )
     return SendEmailResponse(success=True, message=f"Email envoyé à {to_email}")
 
 
@@ -281,6 +314,7 @@ def generate_lm_endpoint(
     db: Session = Depends(get_db),
 ):
     """Génère une lettre de motivation via Claude AI et la sauvegarde."""
+    start = perf_counter()
     candidature = db.get(Candidature, candidature_id)
     if not candidature:
         raise HTTPException(status_code=404, detail="Candidature not found")
@@ -304,6 +338,15 @@ def generate_lm_endpoint(
 
     candidature.lm_texte = lm_texte
     db.commit()
+    log_event(
+        logger,
+        logging.INFO,
+        "candidature_lm_generated",
+        offer_id=candidature.offer_id,
+        candidature_id=candidature_id,
+        source="ai",
+        duration_ms=round((perf_counter() - start) * 1000, 2),
+    )
     return GenerateLMResponse(lm_texte=lm_texte)
 
 
@@ -392,6 +435,7 @@ async def _auto_apply_with_db(
     dry_run: bool,
     db: Session,
 ) -> AutoApplyResponse:
+    start = perf_counter()
     candidature = db.get(Candidature, candidature_id)
     if not candidature:
         raise HTTPException(
@@ -625,10 +669,30 @@ async def _auto_apply_with_db(
                 candidature.statut = "envoyée"
                 candidature.date_envoi = date.today()
                 db.commit()
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "candidature_auto_apply_success",
+                    offer_id=candidature.offer_id,
+                    candidature_id=candidature_id,
+                    source=offer.url,
+                    duration_ms=round((perf_counter() - start) * 1000, 2),
+                    dry_run=dry_run,
+                )
                 return AutoApplyResponse(success=True, message="Candidature envoyée avec succès")
             else:
                 screenshot_path = await _capture_failure(page, "soumission_echec")
                 await browser.close()
+                log_event(
+                    logger,
+                    logging.WARNING,
+                    "candidature_auto_apply_submit_failed",
+                    offer_id=candidature.offer_id,
+                    candidature_id=candidature_id,
+                    source=offer.url,
+                    duration_ms=round((perf_counter() - start) * 1000, 2),
+                    dry_run=dry_run,
+                )
                 return AutoApplyResponse(
                     success=False,
                     message=_auto_apply_error(
@@ -645,6 +709,17 @@ async def _auto_apply_with_db(
             screenshot_path = await _capture_failure(locals().get("page"), "unexpected_error")
         except Exception:
             screenshot_path = None
+        log_event(
+            logger,
+            logging.ERROR,
+            "candidature_auto_apply_error",
+            offer_id=(candidature.offer_id if candidature else None),
+            candidature_id=candidature_id,
+            source=(offer.url if "offer" in locals() and offer else None),
+            duration_ms=round((perf_counter() - start) * 1000, 2),
+            error=str(e),
+            dry_run=dry_run,
+        )
         raise HTTPException(
             status_code=500,
             detail=_auto_apply_error(
