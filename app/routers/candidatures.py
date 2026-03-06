@@ -1,0 +1,838 @@
+import uuid
+import asyncio
+import json
+from datetime import date
+from typing import Optional
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload, sessionmaker
+
+from app.database import get_db
+from app.models.candidature import Candidature
+from app.models.offer import Offer
+from app.profil import profil
+from app.schemas.candidature import CandidatureRead
+
+router = APIRouter(prefix="/candidatures", tags=["candidatures"])
+
+
+def _auto_apply_error(code: str, action: str, reason: str) -> str:
+    """Format d'erreur normalisé pour auto-apply."""
+    return f"{code} | Action: {action} | Reason: {reason}"
+
+
+def _detect_mode(offer: Offer) -> str:
+    """Détermine si la candidature se fait par email, plateforme ou portail tiers.
+
+    Pour emploi.fhf.fr : l'email scrappé est du contact informatif.
+    La candidature se fait via le bouton 'Je candidate!' sur la plateforme FHF,
+    sauf si une URL externe (portail_tiers) est explicitement renseignée.
+    """
+    if offer.candidature_url:
+        return "portail_tiers"
+    if offer.url and "emploi.fhf.fr" in offer.url:
+        return "plateforme"
+    if offer.contact_email:
+        return "email"
+    if offer.url:
+        return "plateforme"
+    return "inconnu"
+
+
+class CandidatureWithOffer(CandidatureRead):
+    offer_title: str
+    offer_company: str
+    offer_url: str | None
+
+
+class CandidatureStatusItem(BaseModel):
+    offer_id: uuid.UUID
+    statut: str
+
+
+class CandidatureCreate(BaseModel):
+    offer_id: uuid.UUID
+    email_contact: str | None = None
+
+
+class CandidaturePatch(BaseModel):
+    statut: str | None = None
+    lm_texte: str | None = None
+    date_envoi: date | None = None
+
+
+class GenerateLMResponse(BaseModel):
+    lm_texte: str
+
+
+class BulkCandidaturesRequest(BaseModel):
+    candidature_ids: list[uuid.UUID]
+    dry_run: bool = False
+    max_concurrency: int = 2
+
+
+class BulkItemResult(BaseModel):
+    candidature_id: uuid.UUID
+    success: bool
+    message: str
+
+
+class BulkOperationResponse(BaseModel):
+    total: int
+    success: int
+    failed: int
+    results: list[BulkItemResult]
+    report_path: str | None = None
+
+
+def _write_bulk_report(operation: str, results: list[BulkItemResult], dry_run: bool = False) -> str | None:
+    """Écrit un rapport JSON par batch et retourne son chemin."""
+    try:
+        from datetime import datetime as _dt
+
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        out_dir = Path("scripts") / "screenshots"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"batch_{operation}_{ts}.json"
+        payload = {
+            "operation": operation,
+            "dry_run": dry_run,
+            "total": len(results),
+            "success": sum(1 for r in results if r.success),
+            "failed": sum(1 for r in results if not r.success),
+            "results": [
+                {
+                    "candidature_id": str(r.candidature_id),
+                    "success": r.success,
+                    "message": r.message,
+                }
+                for r in results
+            ],
+        }
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        return str(path).replace("\\", "/")
+    except Exception:
+        return None
+
+
+def _session_factory_from_db(db: Session):
+    return sessionmaker(bind=db.get_bind(), autocommit=False, autoflush=False)
+
+
+@router.get("", response_model=list[CandidatureWithOffer])
+def list_candidatures(db: Session = Depends(get_db)):
+    stmt = (
+        select(Candidature)
+        .options(joinedload(Candidature.offer))
+        .order_by(Candidature.created_at.desc())
+    )
+    rows = db.execute(stmt).scalars().all()
+    result = []
+    for c in rows:
+        result.append(
+            CandidatureWithOffer(
+                **CandidatureRead.model_validate(c).model_dump(),
+                offer_title=c.offer.title if c.offer else "",
+                offer_company=c.offer.company if c.offer else "",
+                offer_url=c.offer.url if c.offer else None,
+            )
+        )
+    return result
+
+
+@router.get("/status-map", response_model=list[CandidatureStatusItem])
+def candidature_status_map(db: Session = Depends(get_db)):
+    stmt = (
+        select(Candidature.offer_id, Candidature.statut, Candidature.created_at)
+        .where(Candidature.statut != "annulée")
+        .order_by(Candidature.created_at.desc())
+    )
+    rows = db.execute(stmt).all()
+
+    seen: set[uuid.UUID] = set()
+    items: list[CandidatureStatusItem] = []
+    for offer_id, statut, _created_at in rows:
+        if offer_id in seen:
+            continue
+        seen.add(offer_id)
+        items.append(CandidatureStatusItem(offer_id=offer_id, statut=statut))
+    return items
+
+
+@router.get("/offer/{offer_id}", response_model=CandidatureRead | None)
+def get_candidature_by_offer(offer_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Retourne la candidature active (non annulée) pour une offre donnée, ou null."""
+    row = db.execute(
+        select(Candidature)
+        .where(Candidature.offer_id == offer_id)
+        .where(Candidature.statut != "annulée")
+        .order_by(Candidature.created_at.desc())
+    ).scalar_one_or_none()
+    return row
+
+
+@router.post("", response_model=CandidatureRead, status_code=201)
+def create_candidature(body: CandidatureCreate, db: Session = Depends(get_db)):
+    offer = db.get(Offer, body.offer_id)
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+    # Retourne la candidature existante si elle n'est pas annulée
+    existing = db.execute(
+        select(Candidature)
+        .where(Candidature.offer_id == body.offer_id)
+        .where(Candidature.statut != "annulée")
+        .order_by(Candidature.created_at.desc())
+    ).scalar_one_or_none()
+    if existing:
+        return existing
+    candidature = Candidature(
+        id=uuid.uuid4(),
+        offer_id=body.offer_id,
+        email_contact=body.email_contact or offer.contact_email,
+        statut="brouillon",
+        mode_candidature=_detect_mode(offer),
+    )
+    db.add(candidature)
+    db.commit()
+    db.refresh(candidature)
+    return candidature
+
+
+@router.patch("/{candidature_id}", response_model=CandidatureRead)
+def update_candidature(
+    candidature_id: uuid.UUID,
+    body: CandidaturePatch,
+    db: Session = Depends(get_db),
+):
+    candidature = db.get(Candidature, candidature_id)
+    if not candidature:
+        raise HTTPException(status_code=404, detail="Candidature not found")
+    if body.statut is not None:
+        candidature.statut = body.statut
+    if body.lm_texte is not None:
+        candidature.lm_texte = body.lm_texte
+    if body.date_envoi is not None:
+        candidature.date_envoi = body.date_envoi
+    db.commit()
+    db.refresh(candidature)
+    return candidature
+
+
+@router.delete("/{candidature_id}", status_code=204)
+def delete_candidature(candidature_id: uuid.UUID, db: Session = Depends(get_db)):
+    candidature = db.get(Candidature, candidature_id)
+    if not candidature:
+        raise HTTPException(status_code=404, detail="Candidature not found")
+    db.delete(candidature)
+    db.commit()
+
+
+class SendEmailResponse(BaseModel):
+    success: bool
+    message: str
+
+
+@router.post("/{candidature_id}/send-email", response_model=SendEmailResponse)
+def send_email_endpoint(candidature_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Envoie la candidature par email SMTP Gmail (CV en pièce jointe, LM en corps)."""
+    candidature = db.get(Candidature, candidature_id)
+    if not candidature:
+        raise HTTPException(status_code=404, detail="Candidature not found")
+
+    offer = db.get(Offer, candidature.offer_id)
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+
+    to_email = candidature.email_contact or offer.contact_email
+    if not to_email:
+        raise HTTPException(status_code=400, detail="Aucun email de contact renseigné")
+
+    from app.config import settings
+    from app.email_sender import send_candidature_email
+    import smtplib
+
+    subject = f"Candidature — {offer.title}"
+    try:
+        send_candidature_email(
+            to_email=to_email,
+            subject=subject,
+            lm_texte=candidature.lm_texte or "",
+            cv_path=settings.cv_path or None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except smtplib.SMTPAuthenticationError:
+        raise HTTPException(status_code=503, detail="Échec authentification Gmail — vérifiez SMTP_PASSWORD dans .env")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur SMTP : {e}")
+
+    candidature.statut = "envoyée"
+    candidature.date_envoi = date.today()
+    db.commit()
+    return SendEmailResponse(success=True, message=f"Email envoyé à {to_email}")
+
+
+@router.post("/{candidature_id}/generate-lm", response_model=GenerateLMResponse)
+def generate_lm_endpoint(
+    candidature_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    """Génère une lettre de motivation via Claude AI et la sauvegarde."""
+    candidature = db.get(Candidature, candidature_id)
+    if not candidature:
+        raise HTTPException(status_code=404, detail="Candidature not found")
+
+    offer = db.get(Offer, candidature.offer_id)
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+
+    from app.ai.generate_lm import generate_lm
+    try:
+        lm_texte = generate_lm(
+            title=offer.title,
+            company=offer.company,
+            description=offer.description,
+            profil=profil,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur Claude API : {e}")
+
+    candidature.lm_texte = lm_texte
+    db.commit()
+    return GenerateLMResponse(lm_texte=lm_texte)
+
+
+def _generate_lm_with_db(candidature_id: uuid.UUID, db: Session) -> str:
+    candidature = db.get(Candidature, candidature_id)
+    if not candidature:
+        raise HTTPException(status_code=404, detail="Candidature not found")
+
+    offer = db.get(Offer, candidature.offer_id)
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+
+    from app.ai.generate_lm import generate_lm
+    try:
+        lm_texte = generate_lm(
+            title=offer.title,
+            company=offer.company,
+            description=offer.description,
+            profil=profil,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur Claude API : {e}")
+
+    candidature.lm_texte = lm_texte
+    db.commit()
+    return lm_texte
+
+
+class AutoApplyResponse(BaseModel):
+    success: bool
+    message: str
+    screenshot_path: Optional[str] = None
+
+
+def _get_applicator(offer_url: str):
+    """Retourne l'applicator correspondant au site de l'offre."""
+    from app.automation.emploi_territorial import EmploiTerritorialApplicator
+    from app.automation.emploi_fhf import EmploiFHFApplicator
+
+    if not offer_url:
+        return None
+    if "emploi-territorial.fr" in offer_url:
+        return EmploiTerritorialApplicator()
+    if "emploi.fhf.fr" in offer_url or "fhf.fr" in offer_url:
+        return EmploiFHFApplicator()
+    return None
+
+
+async def _run_step_with_retries(
+    step_name: str,
+    attempts: int,
+    delay_s: float,
+    step_callable,
+) -> bool:
+    """Exécute une étape async booléenne avec retry borné."""
+    total = max(1, int(attempts))
+    wait = max(0.0, float(delay_s))
+    for i in range(total):
+        try:
+            ok = await step_callable()
+            if ok:
+                return True
+        except Exception as e:
+            print(f"[auto-apply][{step_name}] tentative {i + 1}/{total} erreur: {e}")
+        if i < total - 1 and wait > 0:
+            await asyncio.sleep(wait)
+    return False
+
+
+@router.post("/{candidature_id}/auto-apply", response_model=AutoApplyResponse)
+async def auto_apply(
+    candidature_id: uuid.UUID,
+    dry_run: bool = False,
+    db: Session = Depends(get_db),
+):
+    """Lance la candidature automatique via Playwright.
+    dry_run=true : screenshot uniquement, pas de soumission.
+    """
+    return await _auto_apply_with_db(candidature_id, dry_run, db)
+
+
+async def _auto_apply_with_db(
+    candidature_id: uuid.UUID,
+    dry_run: bool,
+    db: Session,
+) -> AutoApplyResponse:
+    candidature = db.get(Candidature, candidature_id)
+    if not candidature:
+        raise HTTPException(
+            status_code=404,
+            detail=_auto_apply_error(
+                "AUTOAPPLY_CANDIDATURE_NOT_FOUND",
+                "Vérifier l'ID de candidature puis relancer.",
+                "Candidature not found",
+            ),
+        )
+
+    offer = db.get(Offer, candidature.offer_id)
+    if not offer or not offer.url:
+        raise HTTPException(
+            status_code=404,
+            detail=_auto_apply_error(
+                "AUTOAPPLY_OFFER_URL_NOT_FOUND",
+                "Vérifier que l'offre existe et que son URL est renseignée.",
+                "Offre ou URL introuvable",
+            ),
+        )
+
+    # Si la candidature doit se faire par email, on interdit l'auto-apply navigateur.
+    if candidature.mode_candidature == "email":
+        raise HTTPException(
+            status_code=400,
+            detail=_auto_apply_error(
+                "AUTOAPPLY_EMAIL_MODE_BLOCKED",
+                "Utiliser /send-email pour cette candidature.",
+                "Candidature par email: auto-apply indisponible pour cette offre",
+            ),
+        )
+
+    if offer.candidature_url:
+        raise HTTPException(
+            status_code=400,
+            detail=_auto_apply_error(
+                "AUTOAPPLY_PORTAIL_TIERS_BLOCKED",
+                "Candidater manuellement sur le portail tiers indiqué.",
+                f"Candidature via portail tiers uniquement : {offer.candidature_url}",
+            ),
+        )
+
+    applicator = _get_applicator(offer.url)
+    if not applicator:
+        # Site non supporté : on vérifie en plus que le mode est plateforme
+        if candidature.mode_candidature != "plateforme":
+            raise HTTPException(
+                status_code=400,
+                detail=_auto_apply_error(
+                    "AUTOAPPLY_MODE_NOT_COMPATIBLE",
+                    "Basculer vers un workflow compatible (email ou plateforme supportée).",
+                    f"Site non supporté et mode '{candidature.mode_candidature}' non automatisable",
+                ),
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=_auto_apply_error(
+                "AUTOAPPLY_UNSUPPORTED_SITE",
+                "Candidater manuellement ou implémenter un applicator pour ce domaine.",
+                f"Site non supporté pour l'automatisation : {offer.url}",
+            ),
+        )
+
+    from app.config import settings
+    from playwright.async_api import async_playwright
+    step_retries = max(1, settings.auto_apply_step_retries)
+    retry_delay_s = max(0.0, settings.auto_apply_retry_delay_s)
+
+    if not settings.cv_path:
+        raise HTTPException(
+            status_code=503,
+            detail=_auto_apply_error(
+                "AUTOAPPLY_MISSING_CV_PATH",
+                "Renseigner CV_PATH dans .env puis redémarrer l'API.",
+                "CV_PATH non configuré dans .env",
+            ),
+        )
+
+    # Récupère les credentials selon le site
+    if "emploi-territorial.fr" in offer.url:
+        login = settings.emploi_territorial_login
+        password = settings.emploi_territorial_password
+    else:
+        login = settings.emploi_fhf_login
+        password = settings.emploi_fhf_password
+
+    if not login or not password:
+        raise HTTPException(
+            status_code=503,
+            detail=_auto_apply_error(
+                "AUTOAPPLY_MISSING_CREDENTIALS",
+                "Renseigner les identifiants de la plateforme ciblée dans .env.",
+                "Credentials non configurés dans .env",
+            ),
+        )
+
+    lm_texte = candidature.lm_texte or ""
+    screenshot_path = None
+
+    # Slug lisible pour le nom du fichier : société + date
+    import re as _re
+    from datetime import datetime as _dt
+    _slug = _re.sub(r"[^a-zA-Z0-9]+", "_", (offer.company or "inconnu"))[:30].strip("_").lower()
+    _today = _dt.now().strftime("%Y%m%d")
+    _prefix = f"scripts/screenshots/{_slug}_{_today}"
+
+    async def _capture_failure(page_obj, suffix: str) -> str | None:
+        """Capture best-effort, sans faire échouer le flux si screenshot KO."""
+        path = f"{_prefix}_{suffix}.png"
+        try:
+            if page_obj is not None:
+                await applicator.screenshot(page_obj, path)
+                return path
+        except Exception:
+            pass
+        return None
+
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+
+            # Login
+            ok = await _run_step_with_retries(
+                "login",
+                step_retries,
+                retry_delay_s,
+                lambda: applicator.login(page, login, password),
+            )
+            if not ok:
+                screenshot_path = await _capture_failure(page, "login_echec")
+                await browser.close()
+                return AutoApplyResponse(
+                    success=False,
+                    message=_auto_apply_error(
+                        "AUTOAPPLY_LOGIN_FAILED",
+                        "Vérifier identifiants, MFA/captcha, puis relancer.",
+                        "Échec de la connexion",
+                    ),
+                    screenshot_path=screenshot_path,
+                )
+
+            # Navigation vers l'offre
+            ok = await _run_step_with_retries(
+                "navigate_to_offer",
+                step_retries,
+                retry_delay_s,
+                lambda: applicator.navigate_to_offer(page, offer.url),
+            )
+            if not ok:
+                screenshot_path = await _capture_failure(page, "navigation_echec")
+                await browser.close()
+                return AutoApplyResponse(
+                    success=False,
+                    message=_auto_apply_error(
+                        "AUTOAPPLY_NAVIGATION_FAILED",
+                        "Vérifier l'URL de l'offre et sa disponibilité.",
+                        "Impossible de naviguer vers l'offre",
+                    ),
+                    screenshot_path=screenshot_path,
+                )
+
+            # Cherche le bouton Postuler
+            ok = await _run_step_with_retries(
+                "find_apply_button",
+                step_retries,
+                retry_delay_s,
+                lambda: applicator.find_apply_button(page),
+            )
+            if not ok:
+                screenshot_path = f"{_prefix}_bouton_introuvable.png"
+                await applicator.screenshot(page, screenshot_path)
+                await browser.close()
+                return AutoApplyResponse(
+                    success=False,
+                    message=_auto_apply_error(
+                        "AUTOAPPLY_APPLY_BUTTON_NOT_FOUND",
+                        "Mettre à jour les sélecteurs du site cible.",
+                        "Bouton Postuler non trouvé",
+                    ),
+                    screenshot_path=screenshot_path,
+                )
+
+            if dry_run:
+                screenshot_path = f"{_prefix}_dry_run.png"
+                await applicator.screenshot(page, screenshot_path)
+                await browser.close()
+                return AutoApplyResponse(
+                    success=True,
+                    message="Dry-run : screenshot pris, aucune soumission effectuée",
+                    screenshot_path=screenshot_path,
+                )
+
+            # Remplissage du formulaire
+            ok = await _run_step_with_retries(
+                "fill_form",
+                step_retries,
+                retry_delay_s,
+                lambda: applicator.fill_form(
+                    page, lm_texte, settings.cv_path,
+                    profil=profil,
+                    offer_title=offer.title or "",
+                    offer_company=offer.company or "",
+                ),
+            )
+            if not ok:
+                screenshot_path = f"{_prefix}_erreur_formulaire.png"
+                await applicator.screenshot(page, screenshot_path)
+                await browser.close()
+                return AutoApplyResponse(
+                    success=False,
+                    message=_auto_apply_error(
+                        "AUTOAPPLY_FORM_FILL_FAILED",
+                        "Vérifier les champs requis (CV, diplôme, LM) et leurs sélecteurs.",
+                        "Erreur lors du remplissage du formulaire",
+                    ),
+                    screenshot_path=screenshot_path,
+                )
+
+            # Soumission
+            ok = await _run_step_with_retries(
+                "submit",
+                step_retries,
+                retry_delay_s,
+                lambda: applicator.submit(page),
+            )
+
+            if ok:
+                await browser.close()
+                candidature.statut = "envoyée"
+                candidature.date_envoi = date.today()
+                db.commit()
+                return AutoApplyResponse(success=True, message="Candidature envoyée avec succès")
+            else:
+                screenshot_path = await _capture_failure(page, "soumission_echec")
+                await browser.close()
+                return AutoApplyResponse(
+                    success=False,
+                    message=_auto_apply_error(
+                        "AUTOAPPLY_SUBMIT_FAILED",
+                        "Vérifier les validations côté plateforme après soumission.",
+                        "Échec de la soumission du formulaire",
+                    ),
+                    screenshot_path=screenshot_path,
+                )
+
+    except Exception as e:
+        screenshot_path = None
+        try:
+            screenshot_path = await _capture_failure(locals().get("page"), "unexpected_error")
+        except Exception:
+            screenshot_path = None
+        raise HTTPException(
+            status_code=500,
+            detail=_auto_apply_error(
+                "AUTOAPPLY_PLAYWRIGHT_ERROR",
+                "Consulter les logs et vérifier l'environnement Playwright.",
+                f"Erreur Playwright : {e}" + (f" | screenshot={screenshot_path}" if screenshot_path else ""),
+            ),
+        )
+
+
+def _bulk_generate_lm_impl(ids: list[uuid.UUID], session_factory) -> BulkOperationResponse:
+    results: list[BulkItemResult] = []
+
+    for candidature_id in ids:
+        db = session_factory()
+        try:
+            _generate_lm_with_db(candidature_id, db)
+            results.append(
+                BulkItemResult(
+                    candidature_id=candidature_id,
+                    success=True,
+                    message="LM générée",
+                )
+            )
+        except HTTPException as e:
+            results.append(
+                BulkItemResult(
+                    candidature_id=candidature_id,
+                    success=False,
+                    message=str(e.detail),
+                )
+            )
+        except Exception as e:
+            results.append(
+                BulkItemResult(
+                    candidature_id=candidature_id,
+                    success=False,
+                    message=f"Erreur: {e}",
+                )
+            )
+        finally:
+            db.close()
+
+    success_count = sum(1 for r in results if r.success)
+    report_path = _write_bulk_report("generate_lm", results, dry_run=False)
+    return BulkOperationResponse(
+        total=len(ids),
+        success=success_count,
+        failed=len(ids) - success_count,
+        results=results,
+        report_path=report_path,
+    )
+
+
+async def _bulk_auto_apply_impl(
+    ids: list[uuid.UUID],
+    dry_run: bool,
+    max_concurrency: int,
+    session_factory,
+) -> BulkOperationResponse:
+    results: list[BulkItemResult] = []
+    semaphore = asyncio.Semaphore(max(1, min(5, max_concurrency)))
+
+    async def _run_one(candidature_id: uuid.UUID):
+        async with semaphore:
+            db = session_factory()
+            try:
+                response = await _auto_apply_with_db(candidature_id, dry_run, db)
+                return BulkItemResult(
+                    candidature_id=candidature_id,
+                    success=response.success,
+                    message=response.message,
+                )
+            except HTTPException as e:
+                return BulkItemResult(
+                    candidature_id=candidature_id,
+                    success=False,
+                    message=str(e.detail),
+                )
+            except Exception as e:
+                return BulkItemResult(
+                    candidature_id=candidature_id,
+                    success=False,
+                    message=f"Erreur: {e}",
+                )
+            finally:
+                db.close()
+
+    if ids:
+        results = await asyncio.gather(*[_run_one(c_id) for c_id in ids])
+
+    success_count = sum(1 for r in results if r.success)
+    report_path = _write_bulk_report("auto_apply", results, dry_run=dry_run)
+    return BulkOperationResponse(
+        total=len(ids),
+        success=success_count,
+        failed=len(ids) - success_count,
+        results=results,
+        report_path=report_path,
+    )
+
+
+@router.post("/bulk-generate-lm", response_model=BulkOperationResponse)
+def bulk_generate_lm(body: BulkCandidaturesRequest, db: Session = Depends(get_db)):
+    ids = list(dict.fromkeys(body.candidature_ids))
+    session_factory = _session_factory_from_db(db)
+    return _bulk_generate_lm_impl(ids, session_factory)
+
+
+@router.post("/bulk-auto-apply", response_model=BulkOperationResponse)
+async def bulk_auto_apply(body: BulkCandidaturesRequest, db: Session = Depends(get_db)):
+    ids = list(dict.fromkeys(body.candidature_ids))
+    session_factory = _session_factory_from_db(db)
+    return await _bulk_auto_apply_impl(
+        ids=ids,
+        dry_run=body.dry_run,
+        max_concurrency=body.max_concurrency,
+        session_factory=session_factory,
+    )
+
+
+@router.post("/bulk-generate-lm-and-auto-apply", response_model=BulkOperationResponse)
+async def bulk_generate_lm_and_auto_apply(body: BulkCandidaturesRequest, db: Session = Depends(get_db)):
+    ids = list(dict.fromkeys(body.candidature_ids))
+    session_factory = _session_factory_from_db(db)
+    lm_result = _bulk_generate_lm_impl(ids, session_factory)
+    success_ids = [r.candidature_id for r in lm_result.results if r.success]
+    if not success_ids:
+        merged_results = [
+            BulkItemResult(
+                candidature_id=r.candidature_id,
+                success=False,
+                message=f"LM KO: {r.message}",
+            )
+            for r in lm_result.results
+        ]
+        report_path = _write_bulk_report("generate_lm_and_auto_apply", merged_results, dry_run=body.dry_run)
+        return BulkOperationResponse(
+            total=lm_result.total,
+            success=0,
+            failed=lm_result.total,
+            results=merged_results,
+            report_path=report_path,
+        )
+
+    auto_result = await _bulk_auto_apply_impl(
+        ids=success_ids,
+        dry_run=body.dry_run,
+        max_concurrency=body.max_concurrency,
+        session_factory=session_factory,
+    )
+    auto_map = {r.candidature_id: r for r in auto_result.results}
+
+    merged: list[BulkItemResult] = []
+    for r in lm_result.results:
+        if not r.success:
+            merged.append(
+                BulkItemResult(
+                    candidature_id=r.candidature_id,
+                    success=False,
+                    message=f"LM KO: {r.message}",
+                )
+            )
+            continue
+        ar = auto_map.get(r.candidature_id)
+        if not ar:
+            merged.append(
+                BulkItemResult(
+                    candidature_id=r.candidature_id,
+                    success=False,
+                    message="Auto-apply KO: résultat introuvable",
+                )
+            )
+            continue
+        merged.append(
+            BulkItemResult(
+                candidature_id=r.candidature_id,
+                success=ar.success,
+                message=("OK" if ar.success else "Auto-apply KO") + f": {ar.message}",
+            )
+        )
+
+    success_count = sum(1 for r in merged if r.success)
+    report_path = _write_bulk_report("generate_lm_and_auto_apply", merged, dry_run=body.dry_run)
+    return BulkOperationResponse(
+        total=len(merged),
+        success=success_count,
+        failed=len(merged) - success_count,
+        results=merged,
+        report_path=report_path,
+    )

@@ -1,0 +1,59 @@
+# Configuration des scrapers d'offres d'emploi.
+# Ajouter un nouveau site = ajouter un bloc ici, sans toucher au code.
+#
+# delay        : délai en secondes entre chaque requête (throttling, recommandé 1.0)
+# fetch_detail : visiter chaque page de détail (description complète + email) — lent
+# parse_pdf    : télécharger et parser les PDFs joints pour extraire emails + texte
+# page_param   : nom du paramètre de pagination dans l'URL (défaut: "page")
+# page_start   : numéro de la première page (défaut: 1, certains sites commencent à 0)
+
+sources:
+
+  # ✅ Filière Informatique & SI uniquement (famille A7)
+  - name: emploi-territorial.fr
+    base_url: https://www.emploi-territorial.fr
+    search_url: https://www.emploi-territorial.fr/rechercher?search-fam-metier=A7
+    max_pages: 5
+    delay: 2.5
+    fetch_detail: true
+    parse_pdf: false
+    page_param: page
+    page_start: 1
+    list_selectors:
+      cards: "tr"
+      title: "a[href^='/offre/o']"
+      company: "a[href*='search-col=']"
+      location: "td:nth-child(3)"
+      link: "a[href^='/offre/o']"
+      date_limite: ""
+      email: "a[href^='mailto:']"
+    detail_selectors:
+      description: "#MainContent"
+      # Lignes label/valeur dans la section "Contact et modalités de candidature"
+      # Le code extrait automatiquement "Lien de candidature" et l'email depuis .offre-item
+
+  # ✅ Postes administratifs/techniques uniquement (type=ADM), pagination 0-indexée
+  - name: emploi.fhf.fr
+    base_url: https://emploi.fhf.fr
+    search_url: https://emploi.fhf.fr/emploi/search?type=ADM
+    max_pages: 5
+    delay: 1.0
+    fetch_detail: true
+    parse_pdf: false
+    page_param: page
+    page_start: 0
+    list_selectors:
+      cards: "article.card.card-offer"
+      title: "h3.card-title"
+      company: ".field--name-field-establishment"
+      location: ""
+      link: "a.btn.btn-link"
+      date_limite: ""
+      email: "a[href^='mailto:']"
+    detail_selectors:
+      description: "main"
+      email: "a[href^='mailto:']"
+
+  # ⏳ À faire — nécessite l'API France Travail (OAuth2)
+  # - name: place-emploi-public.fr
+  # - name: choisirleservicepublic.gouv.fr

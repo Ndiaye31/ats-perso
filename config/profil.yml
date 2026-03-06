@@ -1,0 +1,178 @@
+profil:
+  nom: "Amadou Mactar Ndiaye"
+  email: "mactar031@gmail.com"
+  telephone: "0753241127"
+  localisation: "Chessy, France"
+
+  resume: >
+    Data Analyst avec plus de 3 ans d'expérience en environnement grand compte international,
+    combinant analyse de données, Business Intelligence, visualisation décisionnelle et
+    administration SharePoint Online / Microsoft 365. Spécialisé dans la production de KPI,
+    l'automatisation du reporting et la diffusion sécurisée de la donnée via des plateformes
+    collaboratives. Interface naturelle entre équipes métiers, Data et IT.
+
+  competences:
+    data_bi:
+      - "Analyse de données métiers & KPI"
+      - "Power BI (DAX, modélisation, performance)"
+      - "SQL / PostgreSQL"
+      - "Automatisation du reporting"
+      - "ETL & Data quality"
+    sharepoint_m365:
+      - "Administration SharePoint Online"
+      - "Structuration GED & gouvernance documentaire"
+      - "Gestion des permissions (groupes, sécurité, Azure AD)"
+      - "Power Automate / Power Apps"
+      - "Intégration Teams / OneDrive"
+    programmation_outils:
+      - "Python (Pandas, NumPy)"
+      - "Excel avancé, VBA"
+      - "Git, Jira"
+
+  experiences:
+    - poste: "Data Analyst / Administrateur SharePoint Online"
+      employeur: "FPT Industrial (CNH Industrial Group)"
+      lieu: "Paris"
+      debut: "10/2023"
+      fin: "09/2025"
+      type_contrat: "CDD"
+      duree: "2 ans"
+      contexte: "Pilotage de la performance commerciale EMEA et administration des plateformes collaboratives Microsoft 365."
+      responsabilites:
+        - "Analyse des données commerciales, ventes et performance produits"
+        - "ETL (Extraction, Transformation, Load) et data quality via SQL"
+        - "Conception et maintenance de dashboards Power BI (DAX, modélisation)"
+        - "Développement de scripts Python pour automatiser les traitements de données"
+        - "Analyses concurrentielles (pricing, benchmark, tendances marché)"
+        - "Production de rapports décisionnels pour le management"
+        - "Administration SharePoint Online (sites, bibliothèques, listes)"
+        - "Structuration d'une GED pour la diffusion des reportings et documents métiers"
+        - "Gestion des droits d'accès via groupes SharePoint / Azure AD"
+        - "Mise en place de workflows Power Automate (notifications, validations)"
+        - "Création d'outils métiers simples via Power Apps"
+        - "Support utilisateurs N2 (accès, permissions, usages)"
+      resultats:
+        - "Réduction de 30% du temps de production des reportings"
+        - "Fiabilisation des KPI utilisés par le management EMEA"
+        - "Centralisation et sécurisation de la donnée métier via SharePoint"
+        - "Adoption accrue des dashboards et espaces collaboratifs"
+
+    - poste: "Data Analyst"
+      employeur: "FPT Industrial (CNH Industrial Group)"
+      lieu: "Paris"
+      debut: "11/2021"
+      fin: "09/2023"
+      type_contrat: "Alternance"
+      duree: "2 ans"
+      contexte: "Support Data & reporting pour les équipes commerciales internationales."
+      responsabilites:
+        - "Extraction et préparation des données via SQL"
+        - "Création de dashboards Power BI pour le suivi des KPI"
+        - "Automatisation de reportings (Power BI, Excel VBA)"
+        - "Publication et partage des analyses via SharePoint Online"
+        - "Collaboration étroite avec les équipes métiers (France, Italie)"
+      resultats:
+        - "Standardisation des indicateurs de performance"
+        - "Amélioration de l'accessibilité et de la compréhension des données"
+
+  formation:
+    - diplome: "Master Big Data & Intelligence Artificielle"
+      etablissement: "Webitech Paris"
+      annee_debut: 2021
+      annee_fin: 2023
+
+  certifications:
+    - "Microsoft Certified: Power BI Data Analyst (2024)"
+    - "SQL Bootcamp TechTFQ (2024)"
+
+  langues:
+    - langue: "Français"
+      niveau: "bilingue"
+    - langue: "Anglais"
+      niveau: "professionnel"
+
+  cv_base: "./config/cv_amadou_mactar_ndiaye.pdf"
+
+  preferences:
+    types_contrat: ["CDI", "CDD", "Freelance"]
+    title_match_ratio_min: 0.6
+    mots_interdits_titre:
+      - "restaurant"
+      - "restauration"
+      - "serveur"
+      - "serveuse"
+      - "cuisinier"
+      - "cuisine"
+      - "plombier"
+      - "plomberie"
+      - "ambulancier"
+      - "ambulance"
+      - "maçon"
+      - "macon"
+      - "boulanger"
+      - "charpentier"
+      - "carrossier"
+      - "coiffeur"
+      - "mécanicien auto"
+      - "mecanicien auto"
+    localisation:
+      [
+        "Paris",
+        "Île-de-France",
+        "Chessy",
+        "Marne-la-Vallée",
+        "Remote",
+        "France",
+      ]
+    salaire_min: 42000
+    postes_cibles:
+      # Correspondance directe avec le profil
+      - "Data Analyst"
+      - "Data Analyst Power BI"
+      - "Business Intelligence Analyst"
+      - "Analyste BI / Reporting"
+      - "Administrateur SharePoint / Data Analyst"
+      - "Chargé de reporting et pilotage"
+
+      # Compatibles — Data & BI
+      - "Analyste de données"
+      - "Analyste décisionnel"
+      - "Chargé de données"
+      - "Consultant Power BI"
+      - "Consultant BI"
+      - "Responsable reporting"
+      - "Chargé de mission reporting"
+      - "Analyste KPI"
+      - "Data Engineer junior"
+
+      # Compatibles — SharePoint / M365
+      - "Administrateur SharePoint Online"
+      - "Administrateur Microsoft 365"
+      - "Consultant SharePoint"
+      - "Gestionnaire de contenu numérique"
+      - "Responsable GED"
+
+      # Compatibles — Secteur public (emploi-territorial, fonction publique)
+      - "Chargé de mission numérique"
+      - "Chargé de mission systèmes d'information"
+      - "Chargé de mission data"
+      - "Chef de projet numérique"
+      - "Chef de projet transformation digitale"
+      - "Responsable SI et données"
+      - "Coordinateur données et reporting"
+      - "Analyste fonctionnel"
+
+      # Compatibles — Informatique générale
+      - "Technicien informatique"
+      - "Technicien systèmes d'information"
+      - "Technicien SI"
+      - "Développeur"
+      - "Développeur Python"
+      - "Développeur web"
+      - "Développeur applicatif"
+      - "Ingénieur informatique"
+      - "Support informatique"
+      - "Administrateur systèmes"
+      - "Administrateur base de données"
+      - "Référent informatique"
+      - "Responsable informatique"

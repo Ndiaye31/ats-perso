@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environnement virtuel
+venv/
+.venv/
+env/
+
+# Variables d'environnement (sensible)
+.env
+.env.local
+.env.*.local
+
+# Alembic cache
+alembic/versions/__pycache__/
+
+# Divers
+*.log
+.DS_Store
+
+# Frontend build artifacts
+frontend/dist/
+
+# Debug / batch artifacts
+scripts/screenshots/
+
+# Credentials / auth local files
+config/gmail_credentials.json
+credentials.json
+token.json

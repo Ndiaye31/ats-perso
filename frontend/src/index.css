@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --ui-bg: #f2f6f8;
+    --ui-bg-soft: #eef4f6;
+    --ui-text: #11212d;
+    --ui-muted: #4f6472;
+    --ui-border: #d7e2e8;
+    --ui-brand: #0f7c8a;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', Tahoma, sans-serif;
+    color: var(--ui-text);
+    background:
+      radial-gradient(circle at 8% -10%, #d8ebf3 0%, transparent 35%),
+      radial-gradient(circle at 90% 0%, #eef5d7 0%, transparent 30%),
+      var(--ui-bg);
+  }
+}
