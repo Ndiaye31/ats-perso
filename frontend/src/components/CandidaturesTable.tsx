@@ -43,6 +43,16 @@ export function CandidaturesTable({ refreshKey }: Props) {
     setTimeout(() => setToast(null), 3000)
   }
 
+  async function markSent(id: string) {
+    try {
+      await updateCandidature(id, { statut: 'envoyée', date_envoi: new Date().toISOString().slice(0, 10) })
+      showToast('Candidature marquée comme envoyée')
+      load()
+    } catch (err) {
+      showToast(`Erreur : ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
   async function cancel(id: string) {
     try {
       await updateCandidature(id, { statut: 'annulée' })
@@ -111,6 +121,14 @@ export function CandidaturesTable({ refreshKey }: Props) {
                 </button>
               ) : (
                 <span className="text-xs text-gray-400">LM absente</span>
+              )}
+              {c.statut === 'brouillon' && (
+                <button
+                  onClick={() => markSent(c.id)}
+                  className="rounded-md border border-emerald-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                >
+                  Marquer envoyée
+                </button>
               )}
               {c.statut !== 'annulée' && (
                 <button
@@ -217,21 +235,31 @@ export function CandidaturesTable({ refreshKey }: Props) {
                     <span className="text-gray-300">—</span>
                   )}
                 </td>
-                <td className="flex items-center gap-2 px-3 py-2">
-                  {c.statut !== 'annulée' && (
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    {c.statut === 'brouillon' && (
+                      <button
+                        onClick={() => markSent(c.id)}
+                        className="text-xs text-emerald-600 transition-colors hover:text-emerald-700 hover:underline"
+                      >
+                        Envoyée
+                      </button>
+                    )}
+                    {c.statut !== 'annulée' && (
+                      <button
+                        onClick={() => cancel(c.id)}
+                        className="text-xs text-rose-600 transition-colors hover:text-rose-700 hover:underline"
+                      >
+                        Annuler
+                      </button>
+                    )}
                     <button
-                      onClick={() => cancel(c.id)}
-                      className="text-xs text-rose-600 transition-colors hover:text-rose-700 hover:underline"
+                      onClick={() => remove(c.id)}
+                      className="text-xs text-[var(--ui-muted)] transition-colors hover:text-rose-700 hover:underline"
                     >
-                      Annuler
+                      Supprimer
                     </button>
-                  )}
-                  <button
-                    onClick={() => remove(c.id)}
-                    className="text-xs text-[var(--ui-muted)] transition-colors hover:text-rose-700 hover:underline"
-                  >
-                    Supprimer
-                  </button>
+                  </div>
                 </td>
               </tr>
             ))}
