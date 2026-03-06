@@ -86,14 +86,19 @@ def generate_lm_docx(lm_texte: str, profil: dict, offer_title: str, offer_compan
     _add_paragraph(doc, "Madame, Monsieur,", space_after=12)
 
     # --- Corps de la lettre ---
+    _skip_markers = ["veuillez agréer", "je vous prie", "dans l'attente",
+                     "salutations distinguées", "sincères salutations",
+                     "je reste disponible pour un entretien"]
     paragraphs = [p.strip() for p in lm_texte.strip().split("\n\n") if p.strip()]
-    # Saute la formule d'appel si déjà dans le texte
     for para in paragraphs:
         if para.lower().startswith("madame") or para.lower().startswith("objet"):
             continue
-        if any(para.lower().startswith(f) for f in ["veuillez agréer", "je vous prie", "dans l'attente"]):
-            continue
-        _add_paragraph(doc, para, space_after=8)
+        # Retire les lignes contenant une formule de politesse
+        lines = para.split("\n")
+        kept = [l for l in lines if not any(m in l.lower() for m in _skip_markers)]
+        cleaned = "\n".join(kept).strip()
+        if cleaned:
+            _add_paragraph(doc, cleaned, space_after=8)
 
     doc.add_paragraph()  # espace
 
@@ -111,10 +116,15 @@ def generate_lm_docx(lm_texte: str, profil: dict, offer_title: str, offer_compan
     run = p.add_run(nom)
     _set_font(run, size=11, bold=True)
 
-    # Sauvegarde dans un dossier temporaire persistant
-    tmp_dir = Path(tempfile.gettempdir()) / "ats_lm"
-    tmp_dir.mkdir(exist_ok=True)
-    docx_path = tmp_dir / "lettre_motivation.docx"
+    # Sauvegarde dans un dossier persistant avec nom unique
+    lm_dir = Path(__file__).parents[2] / "config" / "lettres"
+    lm_dir.mkdir(exist_ok=True)
+    import re as _re
+    slug_company = _re.sub(r"[^a-zA-Z0-9]+", "_", offer_company)[:30].strip("_").lower()
+    slug_title = _re.sub(r"[^a-zA-Z0-9]+", "_", offer_title)[:30].strip("_").lower()
+    today_str = date.today().strftime("%Y%m%d")
+    filename = f"lm_{slug_company}_{slug_title}_{today_str}"
+    docx_path = lm_dir / f"{filename}.docx"
     doc.save(str(docx_path))
     return docx_path
 

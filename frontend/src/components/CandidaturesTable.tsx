@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { FileText, X } from 'lucide-react'
+import { FileText, X, Download } from 'lucide-react'
 import type { CandidatureWithOffer } from '../types'
-import { getCandidatures, updateCandidature, deleteCandidature } from '../api'
+import { getCandidatures, updateCandidature, deleteCandidature, downloadLmPdf } from '../api'
 import { StatusBadge } from './StatusBadge'
 
 interface Props {
@@ -186,13 +186,20 @@ export function CandidaturesTable({ refreshKey }: Props) {
                 <td className="max-w-[180px] truncate px-3 py-2 text-[var(--ui-muted)]">{c.email_contact ?? '—'}</td>
                 <td className="px-3 py-2">
                   {c.lm_texte ? (
-                    <div className="relative inline-block">
+                    <div className="relative inline-flex items-center gap-1">
                       <button
                         onClick={() => setPopover(popover === c.id ? null : c.id)}
                         className="rounded p-1 text-[var(--ui-muted)] transition-colors hover:bg-[var(--ui-bg-soft)] hover:text-[var(--ui-brand)]"
                         title="Voir LM"
                       >
                         <FileText size={14} />
+                      </button>
+                      <button
+                        onClick={() => downloadLmPdf(c.id)}
+                        className="rounded p-1 text-[var(--ui-muted)] transition-colors hover:bg-[var(--ui-bg-soft)] hover:text-orange-600"
+                        title="Télécharger LM (PDF)"
+                      >
+                        <Download size={14} />
                       </button>
                       {popover === c.id && (
                         <div className="absolute left-6 top-0 z-50 max-h-48 w-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[var(--ui-border)] bg-white p-3 text-xs text-[var(--ui-text)] shadow-xl">

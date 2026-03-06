@@ -8,6 +8,7 @@ from pathlib import Path
 from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, sessionmaker
@@ -348,6 +349,43 @@ def generate_lm_endpoint(
         duration_ms=round((perf_counter() - start) * 1000, 2),
     )
     return GenerateLMResponse(lm_texte=lm_texte)
+
+
+@router.get("/{candidature_id}/download-lm")
+def download_lm_pdf(
+    candidature_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    """Génère le PDF de la lettre de motivation et le retourne en téléchargement."""
+    candidature = db.get(Candidature, candidature_id)
+    if not candidature:
+        raise HTTPException(status_code=404, detail="Candidature not found")
+    if not candidature.lm_texte:
+        raise HTTPException(status_code=400, detail="Aucune lettre de motivation générée")
+
+    offer = db.get(Offer, candidature.offer_id)
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+
+    from app.automation.lm_generator import generate_lm_pdf
+    try:
+        pdf_path = generate_lm_pdf(
+            candidature.lm_texte,
+            profil,
+            offer.title or "",
+            offer.company or "",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur génération PDF : {e}")
+
+    import re as _re
+    slug = _re.sub(r"[^a-zA-Z0-9]+", "_", (offer.company or "")[:30]).strip("_").lower()
+    filename = f"lm_{slug}_{date.today().strftime('%Y%m%d')}.pdf"
+    return FileResponse(
+        path=str(pdf_path),
+        media_type="application/pdf",
+        filename=filename,
+    )
 
 
 def _generate_lm_with_db(candidature_id: uuid.UUID, db: Session) -> str:

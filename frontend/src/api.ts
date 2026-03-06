@@ -100,6 +100,10 @@ export function generateLM(candidatureId: string): Promise<{ lm_texte: string }>
   return request(`/candidatures/${candidatureId}/generate-lm`, { method: 'POST' })
 }
 
+export function downloadLmPdf(candidatureId: string): void {
+  window.open(`${BASE}/candidatures/${candidatureId}/download-lm`, '_blank')
+}
+
 export function autoApply(
   candidatureId: string,
   dryRun = false,

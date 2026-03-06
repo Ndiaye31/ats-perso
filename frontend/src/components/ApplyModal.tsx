@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { X, Wand2, Mail, ExternalLink, Loader2, Eye, Pencil, Paperclip, Bot, Send } from 'lucide-react'
+import { X, Wand2, Mail, ExternalLink, Loader2, Eye, Pencil, Paperclip, Bot, Send, Download } from 'lucide-react'
 import type { OfferTableItem } from '../types'
-import { createCandidature, getCandidatureByOffer, updateCandidature, generateLM, autoApply, sendEmail } from '../api'
+import { createCandidature, getCandidatureByOffer, updateCandidature, generateLM, autoApply, sendEmail, downloadLmPdf } from '../api'
 import { ScoreBadge } from './ScoreBadge'
 
 interface Props {
@@ -368,14 +368,25 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
               </button>
             )}
             {mode === 'portail_tiers' && (
-              <button
-                onClick={() => { window.open(offer.candidature_url!, '_blank'); handleSave('envoyée') }}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 disabled:opacity-60 transition-colors"
-              >
-                <ExternalLink size={14} />
-                Aller sur le portail tiers
-              </button>
+              <>
+                {candidatureId && lm && (
+                  <button
+                    onClick={() => downloadLmPdf(candidatureId)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-orange-300 text-orange-700 text-sm font-medium hover:bg-orange-50 transition-colors"
+                  >
+                    <Download size={14} />
+                    Télécharger LM
+                  </button>
+                )}
+                <button
+                  onClick={() => { window.open(offer.candidature_url!, '_blank'); handleSave('envoyée') }}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 disabled:opacity-60 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                  Aller sur le portail tiers
+                </button>
+              </>
             )}
             {mode === 'inconnu' && (
               <button
