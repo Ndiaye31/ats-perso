@@ -38,8 +38,6 @@ def _detect_mode(offer: Offer) -> str:
     """
     if offer.candidature_url:
         return "portail_tiers"
-    if offer.url and ("emploi.fhf.fr" in offer.url or "emploi-territorial.fr" in offer.url):
-        return "plateforme"
     if offer.contact_email:
         return "email"
     if offer.url:
@@ -645,6 +643,48 @@ async def _auto_apply_with_db(
                 lambda: applicator.find_apply_button(page),
             )
             if not ok:
+                # Fallback email : si le bouton n'existe pas mais qu'un email est dispo
+                fallback_email = candidature.email_contact or (offer.contact_email if offer else None)
+                if fallback_email:
+                    await browser.close()
+                    from app.config import settings as _settings
+                    from app.email_sender import send_candidature_email
+                    lm_body = candidature.lm_texte or ""
+                    subject = f"Candidature — {offer.title}"
+                    try:
+                        send_candidature_email(
+                            to_email=fallback_email,
+                            subject=subject,
+                            lm_texte=lm_body,
+                            cv_path=_settings.cv_path or None,
+                        )
+                    except Exception as e:
+                        return AutoApplyResponse(
+                            success=False,
+                            message=_auto_apply_error(
+                                "AUTOAPPLY_EMAIL_FALLBACK_FAILED",
+                                "Vérifier la configuration SMTP et l'adresse email.",
+                                f"Bouton Postuler absent, fallback email échoué : {e}",
+                            ),
+                        )
+                    candidature.statut = "envoyée"
+                    candidature.mode_candidature = "email"
+                    candidature.date_envoi = date.today()
+                    db.commit()
+                    log_event(
+                        logger,
+                        logging.INFO,
+                        "candidature_auto_apply_email_fallback",
+                        offer_id=candidature.offer_id,
+                        candidature_id=candidature_id,
+                        source=f"email_fallback:{fallback_email}",
+                        duration_ms=round((perf_counter() - start) * 1000, 2),
+                    )
+                    return AutoApplyResponse(
+                        success=True,
+                        message=f"Bouton Postuler absent — email envoyé à {fallback_email}",
+                    )
+
                 screenshot_path = f"{_prefix}_bouton_introuvable.png"
                 await applicator.screenshot(page, screenshot_path)
                 await browser.close()
@@ -653,7 +693,7 @@ async def _auto_apply_with_db(
                     message=_auto_apply_error(
                         "AUTOAPPLY_APPLY_BUTTON_NOT_FOUND",
                         "Mettre à jour les sélecteurs du site cible.",
-                        "Bouton Postuler non trouvé",
+                        "Bouton Postuler non trouvé et aucun email de contact disponible",
                     ),
                     screenshot_path=screenshot_path,
                 )

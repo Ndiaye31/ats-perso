@@ -43,7 +43,6 @@ function ModeBadge({ mode, candidatureUrl }: { mode: Mode; candidatureUrl?: stri
 
 function detectMode(offer: OfferTableItem): Mode {
   if (offer.candidature_url) return 'portail_tiers'
-  if (offer.url?.includes('emploi.fhf.fr') || offer.url?.includes('emploi-territorial.fr')) return 'plateforme'
   if (offer.contact_email) return 'email'
   if (offer.url) return 'plateforme'
   return 'inconnu'
@@ -62,7 +61,6 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
   const [candidatureId, setCandidatureId] = useState<string | null>(null)
 
   const isAutoSupported =
-    mode === 'plateforme' &&
     offer.url != null &&
     !offer.candidature_url &&
     (offer.url.includes('emploi-territorial.fr') || offer.url.includes('emploi.fhf.fr'))
@@ -314,6 +312,17 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
           <div className="flex gap-2">
             {isAutoSupported && (
               <>
+                {email && (
+                  <button
+                    onClick={handleSendEmail}
+                    disabled={sending || !email}
+                    title="Envoyer par email (si le formulaire en ligne n'est pas disponible)"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-blue-300 text-blue-700 text-sm font-medium hover:bg-blue-50 disabled:opacity-60 transition-colors"
+                  >
+                    {sending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                    Email
+                  </button>
+                )}
                 <button
                   onClick={() => handleAutoApply(true)}
                   disabled={applying}
@@ -392,12 +401,19 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
                   </button>
                 )}
                 <button
-                  onClick={() => { window.open(offer.candidature_url!, '_blank'); handleSave('envoyée') }}
+                  onClick={() => window.open(offer.candidature_url!, '_blank')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-orange-300 text-orange-700 text-sm font-medium hover:bg-orange-50 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                  Aller sur le portail
+                </button>
+                <button
+                  onClick={() => handleSave('envoyée')}
                   disabled={loading}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 disabled:opacity-60 transition-colors"
                 >
-                  <ExternalLink size={14} />
-                  Aller sur le portail tiers
+                  <Send size={14} />
+                  Confirmer envoyée
                 </button>
               </>
             )}
