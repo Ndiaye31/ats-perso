@@ -423,6 +423,7 @@ def _get_applicator(offer_url: str):
     """Retourne l'applicator correspondant au site de l'offre."""
     from app.automation.emploi_territorial import EmploiTerritorialApplicator
     from app.automation.emploi_fhf import EmploiFHFApplicator
+    from app.automation.beetween import BeetweenApplicator
 
     if not offer_url:
         return None
@@ -430,6 +431,8 @@ def _get_applicator(offer_url: str):
         return EmploiTerritorialApplicator()
     if "emploi.fhf.fr" in offer_url or "fhf.fr" in offer_url:
         return EmploiFHFApplicator()
+    if "beetween.com" in offer_url:
+        return BeetweenApplicator()
     return None
 
 
@@ -506,16 +509,19 @@ async def _auto_apply_with_db(
         )
 
     if offer.candidature_url:
-        raise HTTPException(
-            status_code=400,
-            detail=_auto_apply_error(
-                "AUTOAPPLY_PORTAIL_TIERS_BLOCKED",
-                "Candidater manuellement sur le portail tiers indiqué.",
-                f"Candidature via portail tiers uniquement : {offer.candidature_url}",
-            ),
-        )
+        # Vérifier si le portail tiers est supporté par un applicator
+        tiers_applicator = _get_applicator(offer.candidature_url)
+        if not tiers_applicator:
+            raise HTTPException(
+                status_code=400,
+                detail=_auto_apply_error(
+                    "AUTOAPPLY_PORTAIL_TIERS_BLOCKED",
+                    "Candidater manuellement sur le portail tiers indiqué.",
+                    f"Candidature via portail tiers uniquement : {offer.candidature_url}",
+                ),
+            )
 
-    applicator = _get_applicator(offer.url)
+    applicator = _get_applicator(offer.candidature_url or offer.url)
     if not applicator:
         # Site non supporté : on vérifie en plus que le mode est plateforme
         if candidature.mode_candidature != "plateforme":
@@ -551,15 +557,23 @@ async def _auto_apply_with_db(
             ),
         )
 
-    # Récupère les credentials selon le site
-    if "emploi-territorial.fr" in offer.url:
+    # URL effective pour la candidature (portail tiers ou offre directe)
+    apply_url = offer.candidature_url or offer.url
+
+    # Récupère les credentials selon le site (certains portails n'en ont pas besoin)
+    login = ""
+    password = ""
+    needs_credentials = True
+    if "beetween.com" in apply_url:
+        needs_credentials = False
+    elif "emploi-territorial.fr" in (offer.url or ""):
         login = settings.emploi_territorial_login
         password = settings.emploi_territorial_password
     else:
         login = settings.emploi_fhf_login
         password = settings.emploi_fhf_password
 
-    if not login or not password:
+    if needs_credentials and (not login or not password):
         raise HTTPException(
             status_code=503,
             detail=_auto_apply_error(
@@ -620,7 +634,7 @@ async def _auto_apply_with_db(
                 "navigate_to_offer",
                 step_retries,
                 retry_delay_s,
-                lambda: applicator.navigate_to_offer(page, offer.url),
+                lambda: applicator.navigate_to_offer(page, apply_url),
             )
             if not ok:
                 screenshot_path = await _capture_failure(page, "navigation_echec")

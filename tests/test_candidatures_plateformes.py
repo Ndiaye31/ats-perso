@@ -119,6 +119,36 @@ class AutoApplyGuardsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertIn("Site non supporté", ctx.exception.detail)
 
+    async def test_auto_apply_does_not_block_supported_portail_tiers(self):
+        """Beetween est un portail tiers supporté — pas de blocage PORTAIL_TIERS."""
+        offer = build_offer(
+            url="https://emploi-territorial.fr/offre/o456",
+            candidature_url="https://app.beetween.com/WeaselWeb/p/#/apply/job/abc123/poste",
+        )
+        cand = build_candidature(offer_id=offer.id, mode="portail_tiers")
+        db = FakeDB(candidature=cand, offer=offer)
+        # Ne doit PAS lever AUTOAPPLY_PORTAIL_TIERS_BLOCKED.
+        # Va lever une autre erreur (Playwright non dispo en test) mais pas le blocage portail.
+        try:
+            await auto_apply(cand.id, dry_run=True, db=db)
+        except HTTPException as e:
+            self.assertNotIn("AUTOAPPLY_PORTAIL_TIERS_BLOCKED", str(e.detail))
+        except Exception:
+            pass  # Playwright import error expected in test env
+
+    async def test_auto_apply_still_blocks_unsupported_portail_tiers(self):
+        """Un portail tiers non supporté reste bloqué."""
+        offer = build_offer(
+            url="https://emploi-territorial.fr/offre/o789",
+            candidature_url="https://unknown-portal.com/jobs/42",
+        )
+        cand = build_candidature(offer_id=offer.id, mode="portail_tiers")
+        db = FakeDB(candidature=cand, offer=offer)
+        with self.assertRaises(HTTPException) as ctx:
+            await auto_apply(cand.id, dry_run=True, db=db)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("AUTOAPPLY_PORTAIL_TIERS_BLOCKED", str(ctx.exception.detail))
+
 
 if __name__ == "__main__":
     unittest.main()
