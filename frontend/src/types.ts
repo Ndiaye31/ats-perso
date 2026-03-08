@@ -40,6 +40,30 @@ export interface OffersTableResponse {
   offset: number
 }
 
+export interface OfferCreate {
+  title: string
+  company: string
+  location?: string | null
+  url?: string | null
+  description?: string | null
+  date_limite?: string | null
+  contact_email?: string | null
+  candidature_url?: string | null
+  status?: string
+}
+
+export interface OfferUpdate {
+  title?: string
+  company?: string
+  location?: string | null
+  url?: string | null
+  description?: string | null
+  date_limite?: string | null
+  contact_email?: string | null
+  candidature_url?: string | null
+  status?: string
+}
+
 export interface Candidature {
   id: string
   offer_id: string

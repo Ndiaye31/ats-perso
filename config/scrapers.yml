@@ -54,6 +54,22 @@ sources:
       description: "main"
       email: "a[href^='mailto:']"
 
+  # ✅ HelloWork — JSON-LD JobPosting, scraper custom (app/scrapers/hellowork.py)
+  - name: hellowork.com
+    base_url: https://www.hellowork.com
+    search_url: https://www.hellowork.com/fr-fr/emploi/recherche.html?k=informatique&l=France
+    max_pages: 5
+    delay: 2.0
+    fetch_detail: true
+    parse_pdf: false
+    page_param: p
+    page_start: 1
+    list_selectors:
+      cards: "a[href*='/emplois/']"
+      title: "h3"
+      link: "a[href*='/emplois/']"
+    detail_selectors: {}
+
   # ⏳ À faire — nécessite l'API France Travail (OAuth2)
   # - name: place-emploi-public.fr
   # - name: choisirleservicepublic.gouv.fr

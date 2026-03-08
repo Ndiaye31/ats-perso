@@ -66,3 +66,41 @@ class OfferTableResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class OfferDetectRequest(BaseModel):
+    url: str
+
+
+class OfferDetectResponse(BaseModel):
+    title: str | None = None
+    company: str | None = None
+    location: str | None = None
+    description: str | None = None
+    date_limite: str | None = None
+    contact_email: str | None = None
+    candidature_url: str | None = None
+
+
+class OfferCreate(BaseModel):
+    title: str
+    company: str
+    location: str | None = None
+    url: str | None = None
+    description: str | None = None
+    date_limite: str | None = None
+    contact_email: str | None = None
+    candidature_url: str | None = None
+    status: str = "new"
+
+
+class OfferUpdate(BaseModel):
+    title: str | None = None
+    company: str | None = None
+    location: str | None = None
+    url: str | None = None
+    description: str | None = None
+    date_limite: str | None = None
+    contact_email: str | None = None
+    candidature_url: str | None = None
+    status: str | None = None

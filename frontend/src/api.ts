@@ -4,6 +4,8 @@ import type {
   CandidatureWithOffer,
   BulkOperationResponse,
   Offer,
+  OfferCreate,
+  OfferUpdate,
   OffersTableResponse,
 } from './types'
 
@@ -58,6 +60,41 @@ export function getOffersTable(params: {
 
 export function getOfferDetail(offerId: string, signal?: AbortSignal): Promise<Offer> {
   return request<Offer>(`/offers/${offerId}`, { signal })
+}
+
+export interface OfferDetectResult {
+  title: string | null
+  company: string | null
+  location: string | null
+  description: string | null
+  date_limite: string | null
+  contact_email: string | null
+  candidature_url: string | null
+}
+
+export function detectOfferFromUrl(url: string): Promise<OfferDetectResult> {
+  return request<OfferDetectResult>('/offers/detect', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  })
+}
+
+export function createOffer(data: OfferCreate): Promise<Offer> {
+  return request<Offer>('/offers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function updateOffer(id: string, data: OfferUpdate): Promise<Offer> {
+  return request<Offer>(`/offers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteOffer(id: string): Promise<void> {
+  return request<void>(`/offers/${id}`, { method: 'DELETE' })
 }
 
 export function getCandidatures(): Promise<CandidatureWithOffer[]> {

@@ -433,6 +433,9 @@ def _get_applicator(offer_url: str):
         return EmploiFHFApplicator()
     if "beetween.com" in offer_url:
         return BeetweenApplicator()
+    if "hellowork.com" in offer_url:
+        from app.automation.hellowork import HelloWorkApplicator
+        return HelloWorkApplicator()
     return None
 
 
@@ -566,6 +569,9 @@ async def _auto_apply_with_db(
     needs_credentials = True
     if "beetween.com" in apply_url:
         needs_credentials = False
+    elif "hellowork.com" in (offer.url or "") or "hellowork.com" in apply_url:
+        login = settings.hellowork_login
+        password = settings.hellowork_password
     elif "emploi-territorial.fr" in (offer.url or ""):
         login = settings.emploi_territorial_login
         password = settings.emploi_territorial_password

@@ -68,6 +68,14 @@ def scrape_one(source_name: str, db: Session = Depends(get_db)) -> dict:
     return result
 
 
+def _get_scraper(config: ScraperConfig) -> BaseScraper:
+    """Retourne le scraper adapté au site (custom ou générique)."""
+    if config.name == "hellowork.com":
+        from app.scrapers.hellowork import HelloWorkScraper
+        return HelloWorkScraper(config)
+    return BaseScraper(config)
+
+
 def _scrape_source(db: Session, config: ScraperConfig, known_hashes: set[str]) -> dict:
     start = perf_counter()
     log_event(logger, logging.INFO, "scrape_source_started", source=config.name)
@@ -78,7 +86,8 @@ def _scrape_source(db: Session, config: ScraperConfig, known_hashes: set[str]) -
         db.flush()
 
     t_fetch_start = perf_counter()
-    raw_offers = BaseScraper(config).fetch_offers(known_hashes=known_hashes)
+    scraper = _get_scraper(config)
+    raw_offers = scraper.fetch_offers(known_hashes=known_hashes)
     fetch_seconds = perf_counter() - t_fetch_start
 
     inserted = skipped = 0

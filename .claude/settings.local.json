@@ -10,7 +10,11 @@
       "Bash(powershell.exe:*)",
       "Bash(grep:*)",
       "Bash(pip install:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(pip show:*)",
+      "Bash(npx tsc:*)",
+      "WebSearch",
+      "WebFetch(domain:www.hellowork.com)"
     ]
   }
 }

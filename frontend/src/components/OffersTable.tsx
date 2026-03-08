@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, Wand2, Send, FileText, Mail, Loader2 } from 'lucide-react'
+import { ChevronDown, Wand2, Send, FileText, Mail, Loader2, Plus, Pencil, Trash2 } from 'lucide-react'
 import type { OfferTableItem } from '../types'
 import {
   bulkGenerateLMAndAutoApply,
   createCandidature,
+  deleteOffer,
   generateLM,
   getCandidatureStatusMap,
   getOffersTable,
@@ -12,6 +13,7 @@ import { ScoreBadge } from './ScoreBadge'
 import { StatusBadge } from './StatusBadge'
 import { ApplyModal } from './ApplyModal'
 import { FicheModal } from './FicheModal'
+import { OfferFormModal } from './OfferFormModal'
 
 const SCORE_OPTIONS = [0, 20, 40, 60, 80]
 const STATUS_OPTIONS = ['all', 'new', 'applied', 'rejected']
@@ -48,6 +50,8 @@ export function OffersTable({ onCandidatureCreated }: Props) {
   const [toast, setToast] = useState<string | null>(null)
   const [candidatureStatuts, setCandidatureStatuts] = useState<Record<string, string>>({})
   const [reloadSeq, setReloadSeq] = useState(0)
+  const [formOffer, setFormOffer] = useState<OfferTableItem | null | undefined>(undefined)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   async function loadOffers(signal: AbortSignal) {
     setLoading(true)
@@ -193,6 +197,20 @@ export function OffersTable({ onCandidatureCreated }: Props) {
     }
   }
 
+  async function handleDelete(id: string) {
+    if (!confirm('Supprimer cette offre ?')) return
+    setDeletingId(id)
+    try {
+      await deleteOffer(id)
+      showToast('Offre supprimée')
+      setReloadSeq((v) => v + 1)
+    } catch (err) {
+      showToast(`Erreur suppression : ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const canPrev = offset > 0
   const canNext = offset + offers.length < total
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
@@ -284,7 +302,15 @@ export function OffersTable({ onCandidatureCreated }: Props) {
       </div>
 
       <div className="flex items-center justify-between text-xs text-[var(--ui-muted)]">
-        <span>{total} offre(s) au total</span>
+        <div className="flex items-center gap-3">
+          <span>{total} offre(s) au total</span>
+          <button
+            onClick={() => setFormOffer(null)}
+            className="flex items-center gap-1 rounded-md bg-[var(--ui-brand)] px-3 py-1.5 text-xs font-medium text-white hover:brightness-110"
+          >
+            <Plus size={12} /> Ajouter une offre
+          </button>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setOffset((v) => Math.max(0, v - PAGE_SIZE))}
@@ -336,6 +362,14 @@ export function OffersTable({ onCandidatureCreated }: Props) {
                 {generatingId === offer.id ? 'LM…' : 'LM IA'}
               </button>
               <button onClick={() => setApplyOffer(offer)} className="rounded-md bg-[var(--ui-brand)] px-2.5 py-1 text-xs font-medium text-white">Postuler</button>
+              <button onClick={() => setFormOffer(offer)} className="rounded-md border border-[var(--ui-border)] px-2 py-1 text-xs text-[var(--ui-muted)]">Modifier</button>
+              <button
+                onClick={() => handleDelete(offer.id)}
+                disabled={deletingId === offer.id}
+                className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 disabled:opacity-50"
+              >
+                Suppr.
+              </button>
             </div>
           </article>
         ))}
@@ -460,6 +494,21 @@ export function OffersTable({ onCandidatureCreated }: Props) {
                         </span>
                       )}
                     </div>
+                    <button
+                      onClick={() => setFormOffer(offer)}
+                      title="Modifier"
+                      className="rounded p-1 text-[var(--ui-muted)] transition-colors hover:bg-[var(--ui-bg-soft)] hover:text-amber-600"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(offer.id)}
+                      disabled={deletingId === offer.id}
+                      title="Supprimer"
+                      className="rounded p-1 text-[var(--ui-muted)] transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -496,6 +545,14 @@ export function OffersTable({ onCandidatureCreated }: Props) {
         <div className="fixed bottom-6 right-6 z-50 rounded-lg bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg">
           {toast}
         </div>
+      )}
+
+      {formOffer !== undefined && (
+        <OfferFormModal
+          offer={formOffer}
+          onClose={() => setFormOffer(undefined)}
+          onSaved={() => setReloadSeq((v) => v + 1)}
+        />
       )}
 
       {ficheOffer && (
