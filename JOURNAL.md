@@ -1037,3 +1037,60 @@ Audit réalisé pour évaluer la mise en production :
 - Build API Docker OK
 - 4 candidatures brouillon testées et envoyées (2 auto-apply + 2 email)
 - Commit : `bd7cb11`
+
+---
+
+## 2026-03-08 — Distinction frontend des plateformes + durcissement HelloWork
+
+### 1. Frontend : libellés de mode plus précis
+
+**Demande :** Ne plus afficher seulement `plateforme` côté interface, mais distinguer les plateformes automatiques connues.
+
+**Correction :**
+- Ajout d'un helper frontend pour mapper les URLs vers `FHF`, `Emploi-Territorial`, `HelloWork`
+- Affichage détaillé dans la table des candidatures et la modale de postulation
+- Filtre des offres mis à jour pour proposer `FHF`, `Emploi-Territorial`, `HelloWork`, `Email`, `Portail tiers`
+- Suppression de `Inconnu` de l'interface de filtre
+
+### 2. HelloWork : retour au login/mot de passe `.env`
+
+**Contexte :** Le flux avait été orienté vers un login Google. Après vérification, l'usage réel est un compte HelloWork avec `HELLOWORK_LOGIN` / `HELLOWORK_PASSWORD`.
+
+**Correction :**
+- Retour au login email/mot de passe HelloWork
+- Message d'erreur `AUTOAPPLY_MISSING_CREDENTIALS` aligné sur `HELLOWORK_LOGIN` et `HELLOWORK_PASSWORD`
+- Nettoyage de `.env.example` et `app/config.py` pour retirer les variables Google devenues inutiles
+
+### 3. HelloWork : inspection du site réel
+
+Inspection réalisée en Edge visible, sans soumission :
+
+- L'ancienne URL `https://www.hellowork.com/fr-fr/login.html` renvoie une `404`
+- La vraie page de connexion est `https://www.hellowork.com/fr-fr/candidat/connexion-inscription.html#connexion`
+- Le bouton `Postuler` existe bien sur les offres actives
+- Certaines offres affichent d'abord une étape d'auth/création de compte après clic sur `Postuler`
+- Certaines offres sont bloquées par la modale cookies avant clic sur `Postuler`
+
+Captures produites :
+- `scripts/screenshots/hellowork_login_inspect.png`
+- `scripts/screenshots/hellowork_real_login_page.png`
+- `scripts/screenshots/hellowork_google_redirect.png`
+- `scripts/screenshots/hellowork_active_offer_1.png`
+
+### 4. HelloWork : durcissement du flow auto-apply
+
+**Fichier :** `app/automation/hellowork.py`
+
+Améliorations ajoutées :
+- correction de l'URL de login HelloWork
+- gestion de la bannière cookies avant interaction
+- support du vrai bouton `Postuler`, y compris la variante `data-cy=\"applyButton\"`
+- détection d'une étape intermédiaire auth/création de compte après clic sur `Postuler`
+- sauvegarde du `storage_state` quand la connexion réussit
+
+**Important :** la détection du gate d'auth après `Postuler` est maintenant présente, mais la reprise automatique complète de cette branche n'est pas encore implémentée.
+
+### Validation
+
+- Tests API backend OK : `python -m unittest tests.test_candidatures_api`
+- Aucune régression détectée sur FHF / Emploi-Territorial dans les tests existants

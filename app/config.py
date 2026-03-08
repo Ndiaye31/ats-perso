@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     emploi_fhf_password: str = ""
     hellowork_login: str = ""
     hellowork_password: str = ""
+    hellowork_storage_state_path: str = "scripts/hellowork_storage_state.json"
+    hellowork_browser_channel: str = "msedge"
+    hellowork_visible: bool = True
+    hellowork_headless_after_login: bool = True
     cv_path: str = ""
     diplome_path: str = ""
     auto_apply_step_retries: int = 2

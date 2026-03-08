@@ -3,22 +3,10 @@ import { FileText, X, Download } from 'lucide-react'
 import type { CandidatureWithOffer } from '../types'
 import { getCandidatures, updateCandidature, deleteCandidature, downloadLmPdf } from '../api'
 import { StatusBadge } from './StatusBadge'
+import { getCandidatureModeLabel, getModeBadgeTone } from '../modeLabels'
 
 interface Props {
   refreshKey: number
-}
-
-function ModeBadge({ mode }: { mode: CandidatureWithOffer['mode_candidature'] }) {
-  if (mode === 'email') {
-    return <span className="inline-flex rounded-full bg-cyan-100 px-2.5 py-1 text-xs font-semibold text-cyan-800 ring-1 ring-cyan-200">Email</span>
-  }
-  if (mode === 'plateforme') {
-    return <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800 ring-1 ring-violet-200">Plateforme</span>
-  }
-  if (mode === 'portail_tiers') {
-    return <span className="inline-flex rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-800 ring-1 ring-orange-200">Portail tiers</span>
-  }
-  return <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 ring-1 ring-gray-200">Inconnu</span>
 }
 
 export function CandidaturesTable({ refreshKey }: Props) {
@@ -101,7 +89,9 @@ export function CandidaturesTable({ refreshKey }: Props) {
             </div>
 
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <ModeBadge mode={c.mode_candidature} />
+              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getModeBadgeTone(c)}`}>
+                {getCandidatureModeLabel(c)}
+              </span>
               <StatusBadge status={c.statut} />
               <span className="text-xs text-[var(--ui-muted)]">{c.date_envoi ?? 'Non envoyée'}</span>
             </div>
@@ -197,7 +187,9 @@ export function CandidaturesTable({ refreshKey }: Props) {
                 </td>
                 <td className="max-w-[160px] truncate px-3 py-2 text-[var(--ui-muted)]">{c.offer_company}</td>
                 <td className="px-3 py-2">
-                  <ModeBadge mode={c.mode_candidature} />
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getModeBadgeTone(c)}`}>
+                    {getCandidatureModeLabel(c)}
+                  </span>
                 </td>
                 <td className="px-3 py-2"><StatusBadge status={c.statut} /></td>
                 <td className="whitespace-nowrap px-3 py-2 text-[var(--ui-muted)]">{c.date_envoi ?? '—'}</td>

@@ -24,6 +24,14 @@ from app.routers.candidatures import get_db
 
 
 class _FakeBrowser:
+    async def new_context(self, **kwargs):
+        return _FakeBrowserContext()
+
+    async def close(self):
+        return None
+
+
+class _FakeBrowserContext:
     async def new_page(self):
         return object()
 
@@ -32,7 +40,7 @@ class _FakeBrowser:
 
 
 class _FakeChromium:
-    async def launch(self, headless=True):
+    async def launch(self, **kwargs):
         return _FakeBrowser()
 
 
@@ -223,6 +231,27 @@ class CandidaturesApiIntegrationTests(unittest.TestCase):
         ), patch("app.config.settings.emploi_territorial_login", "user"), patch(
             "app.config.settings.emploi_territorial_password", "pass"
         ), patch.dict(sys.modules, {"playwright.async_api": fake_async_api}):
+            res = self.client.post(f"/candidatures/{cand.id}/auto-apply?dry_run=true")
+
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertTrue(body["success"])
+        self.assertIn("Dry-run", body["message"])
+
+    def test_auto_apply_dry_run_hellowork_password_returns_success(self):
+        offer = self._insert_offer(url="https://www.hellowork.com/fr-fr/emplois/12345.html")
+        cand = self._insert_candidature(offer.id, mode="plateforme")
+
+        fake_async_api = types.ModuleType("playwright.async_api")
+        fake_async_api.async_playwright = _fake_async_playwright
+
+        with patch("app.routers.candidatures._get_applicator", return_value=_FakeApplicator()), patch(
+            "app.config.settings.cv_path", "C:/fake/cv.pdf"
+        ), patch("app.config.settings.hellowork_login", "user@example.com"), patch(
+            "app.config.settings.hellowork_password", "secret"
+        ), patch("app.config.settings.hellowork_visible", True), patch.dict(
+            sys.modules, {"playwright.async_api": fake_async_api}
+        ):
             res = self.client.post(f"/candidatures/{cand.id}/auto-apply?dry_run=true")
 
         self.assertEqual(res.status_code, 200)

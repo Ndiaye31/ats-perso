@@ -20,9 +20,10 @@ const STATUS_OPTIONS = ['all', 'new', 'applied', 'rejected']
 const MODE_OPTIONS = [
   { value: 'all', label: 'Tous modes' },
   { value: 'email', label: 'Email' },
-  { value: 'plateforme', label: 'Plateforme' },
+  { value: 'fhf', label: 'FHF' },
+  { value: 'emploi_territorial', label: 'Emploi-Territorial' },
+  { value: 'hellowork', label: 'HelloWork' },
   { value: 'portail_tiers', label: 'Portail tiers' },
-  { value: 'inconnu', label: 'Inconnu' },
 ]
 const PAGE_SIZE = 20
 
@@ -59,8 +60,20 @@ export function OffersTable({ onCandidatureCreated }: Props) {
       const data = await getOffersTable({
         minScore,
         status: statusFilter,
-        source: sourceFilter,
-        mode: modeFilter,
+        source:
+          sourceFilter !== 'all'
+            ? sourceFilter
+            : modeFilter === 'fhf'
+            ? 'emploi.fhf.fr'
+            : modeFilter === 'emploi_territorial'
+            ? 'emploi-territorial.fr'
+            : modeFilter === 'hellowork'
+            ? 'hellowork.com'
+            : 'all',
+        mode:
+          modeFilter === 'fhf' || modeFilter === 'emploi_territorial' || modeFilter === 'hellowork'
+            ? 'plateforme'
+            : modeFilter,
         locationQ: locationQuery,
         limit: PAGE_SIZE,
         offset,

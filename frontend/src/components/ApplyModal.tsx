@@ -3,6 +3,7 @@ import { X, Wand2, Mail, ExternalLink, Loader2, Eye, Pencil, Paperclip, Bot, Sen
 import type { OfferTableItem } from '../types'
 import { createCandidature, getCandidatureByOffer, updateCandidature, generateLM, autoApply, sendEmail, downloadLmPdf } from '../api'
 import { ScoreBadge } from './ScoreBadge'
+import { getApplyModeLabel, getOfferPlatformName } from '../modeLabels'
 
 interface Props {
   offer: OfferTableItem
@@ -21,18 +22,19 @@ function getPortalHost(candidatureUrl?: string | null): string {
   }
 }
 
-function ModeBadge({ mode, candidatureUrl }: { mode: Mode; candidatureUrl?: string | null }) {
+function ModeBadge({ mode, offer }: { mode: Mode; offer: OfferTableItem }) {
+  const platformName = getOfferPlatformName(offer)
   const styles: Record<Mode, string> = {
     email: 'bg-blue-100 text-blue-700',
     plateforme: 'bg-purple-100 text-purple-700',
     portail_tiers: 'bg-orange-100 text-orange-700',
-    inconnu: 'bg-gray-100 text-gray-500',
+    inconnu: 'bg-slate-100 text-slate-700',
   }
   const labels: Record<Mode, string> = {
     email: '✉ Candidature par email',
-    plateforme: '🌐 Candidature via la plateforme',
-    portail_tiers: `🔗 Portail tiers${candidatureUrl ? ` — ${getPortalHost(candidatureUrl)}` : ''}`,
-    inconnu: 'Mode inconnu',
+    plateforme: `🌐 ${getApplyModeLabel(offer)}`,
+    portail_tiers: `🔗 ${getApplyModeLabel(offer)}${offer.candidature_url ? ` — ${getPortalHost(offer.candidature_url)}` : ''}`,
+    inconnu: `🌐 ${platformName ?? 'Plateforme'}`,
   }
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${styles[mode]}`}>
@@ -63,7 +65,11 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
   const isAutoSupported =
     offer.url != null &&
     !offer.candidature_url &&
-    (offer.url.includes('emploi-territorial.fr') || offer.url.includes('emploi.fhf.fr'))
+    (
+      offer.url.includes('emploi-territorial.fr') ||
+      offer.url.includes('emploi.fhf.fr') ||
+      offer.url.includes('hellowork.com')
+    )
 
   const subject = `Candidature — ${offer.title}`
 
@@ -219,7 +225,7 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
               {/* Mode + score */}
               <div className="flex items-center gap-3 flex-wrap">
                 <ScoreBadge score={offer.score} />
-                <ModeBadge mode={mode} candidatureUrl={offer.candidature_url} />
+                <ModeBadge mode={mode} offer={offer} />
                 {offer.date_limite && (
                   <span className="text-xs text-gray-500">Limite : {offer.date_limite}</span>
                 )}
@@ -416,15 +422,6 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
                   Confirmer envoyée
                 </button>
               </>
-            )}
-            {mode === 'inconnu' && (
-              <button
-                onClick={() => handleSave('envoyée')}
-                disabled={loading}
-                className="px-4 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 transition-colors"
-              >
-                Marquer envoyée
-              </button>
             )}
           </div>
         </div>

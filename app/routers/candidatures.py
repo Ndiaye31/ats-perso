@@ -38,6 +38,11 @@ def _detect_mode(offer: Offer) -> str:
     """
     if offer.candidature_url:
         return "portail_tiers"
+    if offer.url and any(
+        domain in offer.url
+        for domain in ("emploi-territorial.fr", "emploi.fhf.fr", "fhf.fr", "hellowork.com")
+    ):
+        return "plateforme"
     if offer.contact_email:
         return "email"
     if offer.url:
@@ -460,6 +465,25 @@ async def _run_step_with_retries(
     return False
 
 
+def _is_hellowork_url(url: str | None) -> bool:
+    return bool(url and "hellowork.com" in url)
+
+
+def _build_browser_config(settings, offer: Offer, apply_url: str) -> tuple[dict, dict]:
+    launch_kwargs: dict = {"headless": True}
+    context_kwargs: dict = {}
+    if _is_hellowork_url(offer.url) or _is_hellowork_url(apply_url):
+        storage_state_path = Path(settings.hellowork_storage_state_path)
+        has_saved_state = storage_state_path.exists()
+        launch_kwargs["channel"] = settings.hellowork_browser_channel or "msedge"
+        launch_kwargs["headless"] = bool(settings.hellowork_headless_after_login and has_saved_state and not settings.hellowork_visible)
+        if settings.hellowork_visible or not has_saved_state:
+            launch_kwargs["headless"] = False
+        if has_saved_state:
+            context_kwargs["storage_state"] = str(storage_state_path)
+    return launch_kwargs, context_kwargs
+
+
 @router.post("/{candidature_id}/auto-apply", response_model=AutoApplyResponse)
 async def auto_apply(
     candidature_id: uuid.UUID,
@@ -580,11 +604,14 @@ async def _auto_apply_with_db(
         password = settings.emploi_fhf_password
 
     if needs_credentials and (not login or not password):
+        action = "Renseigner les identifiants de la plateforme ciblée dans .env."
+        if _is_hellowork_url(offer.url) or _is_hellowork_url(apply_url):
+            action = "Renseigner HELLOWORK_LOGIN et HELLOWORK_PASSWORD dans .env."
         raise HTTPException(
             status_code=503,
             detail=_auto_apply_error(
                 "AUTOAPPLY_MISSING_CREDENTIALS",
-                "Renseigner les identifiants de la plateforme ciblée dans .env.",
+                action,
                 "Credentials non configurés dans .env",
             ),
         )
@@ -612,8 +639,10 @@ async def _auto_apply_with_db(
 
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
+            launch_kwargs, context_kwargs = _build_browser_config(settings, offer, apply_url)
+            browser = await p.chromium.launch(**launch_kwargs)
+            context = await browser.new_context(**context_kwargs)
+            page = await context.new_page()
 
             # Login
             ok = await _run_step_with_retries(
@@ -624,6 +653,7 @@ async def _auto_apply_with_db(
             )
             if not ok:
                 screenshot_path = await _capture_failure(page, "login_echec")
+                await context.close()
                 await browser.close()
                 return AutoApplyResponse(
                     success=False,
@@ -644,6 +674,7 @@ async def _auto_apply_with_db(
             )
             if not ok:
                 screenshot_path = await _capture_failure(page, "navigation_echec")
+                await context.close()
                 await browser.close()
                 return AutoApplyResponse(
                     success=False,
@@ -666,6 +697,7 @@ async def _auto_apply_with_db(
                 # Fallback email : si le bouton n'existe pas mais qu'un email est dispo
                 fallback_email = candidature.email_contact or (offer.contact_email if offer else None)
                 if fallback_email:
+                    await context.close()
                     await browser.close()
                     from app.config import settings as _settings
                     from app.email_sender import send_candidature_email
@@ -707,6 +739,7 @@ async def _auto_apply_with_db(
 
                 screenshot_path = f"{_prefix}_bouton_introuvable.png"
                 await applicator.screenshot(page, screenshot_path)
+                await context.close()
                 await browser.close()
                 return AutoApplyResponse(
                     success=False,
@@ -721,6 +754,7 @@ async def _auto_apply_with_db(
             if dry_run:
                 screenshot_path = f"{_prefix}_dry_run.png"
                 await applicator.screenshot(page, screenshot_path)
+                await context.close()
                 await browser.close()
                 return AutoApplyResponse(
                     success=True,
@@ -743,6 +777,7 @@ async def _auto_apply_with_db(
             if not ok:
                 screenshot_path = f"{_prefix}_erreur_formulaire.png"
                 await applicator.screenshot(page, screenshot_path)
+                await context.close()
                 await browser.close()
                 return AutoApplyResponse(
                     success=False,
@@ -763,6 +798,7 @@ async def _auto_apply_with_db(
             )
 
             if ok:
+                await context.close()
                 await browser.close()
                 candidature.statut = "envoyée"
                 candidature.date_envoi = date.today()
@@ -780,6 +816,7 @@ async def _auto_apply_with_db(
                 return AutoApplyResponse(success=True, message="Candidature envoyée avec succès")
             else:
                 screenshot_path = await _capture_failure(page, "soumission_echec")
+                await context.close()
                 await browser.close()
                 log_event(
                     logger,
