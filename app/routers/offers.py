@@ -289,6 +289,16 @@ def update_offer(offer_id: uuid.UUID, payload: OfferUpdate, db: Session = Depend
     return offer
 
 
+@router.delete("/bulk", status_code=200)
+def bulk_delete_offers(ids: list[uuid.UUID], db: Session = Depends(get_db)):
+    """Supprime plusieurs offres d'un coup."""
+    deleted = db.execute(
+        Offer.__table__.delete().where(Offer.id.in_(ids))
+    ).rowcount
+    db.commit()
+    return {"deleted": deleted}
+
+
 @router.delete("/{offer_id}", status_code=204)
 def delete_offer(offer_id: uuid.UUID, db: Session = Depends(get_db)):
     offer = db.get(Offer, offer_id)

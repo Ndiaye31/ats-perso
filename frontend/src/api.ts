@@ -97,6 +97,13 @@ export function deleteOffer(id: string): Promise<void> {
   return request<void>(`/offers/${id}`, { method: 'DELETE' })
 }
 
+export function bulkDeleteOffers(ids: string[]): Promise<{ deleted: number }> {
+  return request<{ deleted: number }>('/offers/bulk', {
+    method: 'DELETE',
+    body: JSON.stringify(ids),
+  })
+}
+
 export function getCandidatures(): Promise<CandidatureWithOffer[]> {
   return request<CandidatureWithOffer[]>('/candidatures')
 }

@@ -110,6 +110,11 @@ def _scrape_source(db: Session, config: ScraperConfig, known_hashes: set[str]) -
             content_hash=h,
             source_id=source.id,
         )
+        # Pas de moyen de postuler → on ignore l'offre
+        if not raw.email_contact and not raw.candidature_url:
+            skipped += 1
+            continue
+
         s, details = score_offer(offer, profil)
         if s < MIN_SCORE:
             skipped += 1

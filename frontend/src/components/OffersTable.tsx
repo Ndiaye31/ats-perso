@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Wand2, Send, FileText, Mail, Loader2, Plus, Pencil, Trash2 } from 'lucide-react'
 import type { OfferTableItem } from '../types'
 import {
+  bulkDeleteOffers,
   bulkGenerateLMAndAutoApply,
   createCandidature,
   deleteOffer,
@@ -22,7 +23,6 @@ const MODE_OPTIONS = [
   { value: 'email', label: 'Email' },
   { value: 'fhf', label: 'FHF' },
   { value: 'emploi_territorial', label: 'Emploi-Territorial' },
-  { value: 'hellowork', label: 'HelloWork' },
   { value: 'portail_tiers', label: 'Portail tiers' },
 ]
 const PAGE_SIZE = 20
@@ -53,6 +53,7 @@ export function OffersTable({ onCandidatureCreated }: Props) {
   const [reloadSeq, setReloadSeq] = useState(0)
   const [formOffer, setFormOffer] = useState<OfferTableItem | null | undefined>(undefined)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   async function loadOffers(signal: AbortSignal) {
     setLoading(true)
@@ -67,11 +68,9 @@ export function OffersTable({ onCandidatureCreated }: Props) {
             ? 'emploi.fhf.fr'
             : modeFilter === 'emploi_territorial'
             ? 'emploi-territorial.fr'
-            : modeFilter === 'hellowork'
-            ? 'hellowork.com'
             : 'all',
         mode:
-          modeFilter === 'fhf' || modeFilter === 'emploi_territorial' || modeFilter === 'hellowork'
+          modeFilter === 'fhf' || modeFilter === 'emploi_territorial'
             ? 'plateforme'
             : modeFilter,
         locationQ: locationQuery,
@@ -142,6 +141,7 @@ export function OffersTable({ onCandidatureCreated }: Props) {
   }, [offers, sourceFilter])
 
   function toggleSelect(id: string) {
+    if (candidatureStatuts[id] === 'envoyée') return
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -150,11 +150,16 @@ export function OffersTable({ onCandidatureCreated }: Props) {
     })
   }
 
+  const selectableOffers = useMemo(
+    () => offers.filter((o) => candidatureStatuts[o.id] !== 'envoyée'),
+    [offers, candidatureStatuts],
+  )
+
   function toggleAll() {
-    if (selected.size === offers.length) {
+    if (selected.size === selectableOffers.length) {
       setSelected(new Set())
     } else {
-      setSelected(new Set(offers.map((o) => o.id)))
+      setSelected(new Set(selectableOffers.map((o) => o.id)))
     }
   }
 
@@ -221,6 +226,21 @@ export function OffersTable({ onCandidatureCreated }: Props) {
       showToast(`Erreur suppression : ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  async function batchDelete() {
+    if (!confirm(`Supprimer ${selected.size} offre(s) ?`)) return
+    setBatchDeleting(true)
+    try {
+      const result = await bulkDeleteOffers([...selected])
+      showToast(`${result.deleted} offre(s) supprimée(s)`)
+      setSelected(new Set())
+      setReloadSeq((v) => v + 1)
+    } catch (err) {
+      showToast(`Erreur suppression : ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setBatchDeleting(false)
     }
   }
 
@@ -353,7 +373,8 @@ export function OffersTable({ onCandidatureCreated }: Props) {
                 type="checkbox"
                 checked={selected.has(offer.id)}
                 onChange={() => toggleSelect(offer.id)}
-                className="mt-1 rounded border-gray-300"
+                disabled={candidatureStatuts[offer.id] === 'envoyée'}
+                className="mt-1 rounded border-gray-300 disabled:opacity-40"
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-[var(--ui-text)]">{offer.title}</p>
@@ -374,7 +395,13 @@ export function OffersTable({ onCandidatureCreated }: Props) {
               >
                 {generatingId === offer.id ? 'LM…' : 'LM IA'}
               </button>
-              <button onClick={() => setApplyOffer(offer)} className="rounded-md bg-[var(--ui-brand)] px-2.5 py-1 text-xs font-medium text-white">Postuler</button>
+              <button
+                onClick={() => setApplyOffer(offer)}
+                disabled={candidatureStatuts[offer.id] === 'envoyée'}
+                className="rounded-md bg-[var(--ui-brand)] px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {candidatureStatuts[offer.id] === 'envoyée' ? 'Déjà postulé' : 'Postuler'}
+              </button>
               <button onClick={() => setFormOffer(offer)} className="rounded-md border border-[var(--ui-border)] px-2 py-1 text-xs text-[var(--ui-muted)]">Modifier</button>
               <button
                 onClick={() => handleDelete(offer.id)}
@@ -397,7 +424,7 @@ export function OffersTable({ onCandidatureCreated }: Props) {
               <th className="px-3 py-3 text-left">
                 <input
                   type="checkbox"
-                  checked={offers.length > 0 && selected.size === offers.length}
+                  checked={selectableOffers.length > 0 && selected.size === selectableOffers.length}
                   onChange={toggleAll}
                   className="rounded border-gray-300"
                 />
@@ -431,7 +458,8 @@ export function OffersTable({ onCandidatureCreated }: Props) {
                     type="checkbox"
                     checked={selected.has(offer.id)}
                     onChange={() => toggleSelect(offer.id)}
-                    className="rounded border-gray-300"
+                    disabled={candidatureStatuts[offer.id] === 'envoyée'}
+                    className="rounded border-gray-300 disabled:opacity-40"
                   />
                 </td>
                 <td className="max-w-[220px] px-3 py-2">
@@ -490,8 +518,9 @@ export function OffersTable({ onCandidatureCreated }: Props) {
                     <div className="flex flex-col items-start gap-0.5">
                       <button
                         onClick={() => setApplyOffer(offer)}
-                        title="Postuler"
-                        className="rounded p-1 text-[var(--ui-muted)] transition-colors hover:bg-[var(--ui-bg-soft)] hover:text-emerald-600"
+                        disabled={candidatureStatuts[offer.id] === 'envoyée'}
+                        title={candidatureStatuts[offer.id] === 'envoyée' ? 'Déjà postulé' : 'Postuler'}
+                        className="rounded p-1 text-[var(--ui-muted)] transition-colors hover:bg-[var(--ui-bg-soft)] hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--ui-muted)]"
                       >
                         <Send size={14} />
                       </button>
@@ -547,6 +576,13 @@ export function OffersTable({ onCandidatureCreated }: Props) {
             className="rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-medium hover:bg-emerald-500 disabled:opacity-60"
           >
             {batchAutoLoading ? 'Traitement…' : 'LM + Auto'}
+          </button>
+          <button
+            onClick={batchDelete}
+            disabled={batchDeleting}
+            className="rounded-full bg-red-600 px-4 py-1.5 text-sm font-medium hover:bg-red-500 disabled:opacity-60"
+          >
+            {batchDeleting ? 'Suppression…' : 'Supprimer'}
           </button>
           <button onClick={() => setSelected(new Set())} className="text-sm text-gray-300 hover:text-white">
             Annuler
