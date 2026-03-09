@@ -70,9 +70,6 @@ def scrape_one(source_name: str, db: Session = Depends(get_db)) -> dict:
 
 def _get_scraper(config: ScraperConfig) -> BaseScraper:
     """Retourne le scraper adapté au site (custom ou générique)."""
-    if config.name == "hellowork.com":
-        from app.scrapers.hellowork import HelloWorkScraper
-        return HelloWorkScraper(config)
     return BaseScraper(config)
 
 

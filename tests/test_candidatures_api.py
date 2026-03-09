@@ -238,27 +238,6 @@ class CandidaturesApiIntegrationTests(unittest.TestCase):
         self.assertTrue(body["success"])
         self.assertIn("Dry-run", body["message"])
 
-    def test_auto_apply_dry_run_hellowork_password_returns_success(self):
-        offer = self._insert_offer(url="https://www.hellowork.com/fr-fr/emplois/12345.html")
-        cand = self._insert_candidature(offer.id, mode="plateforme")
-
-        fake_async_api = types.ModuleType("playwright.async_api")
-        fake_async_api.async_playwright = _fake_async_playwright
-
-        with patch("app.routers.candidatures._get_applicator", return_value=_FakeApplicator()), patch(
-            "app.config.settings.cv_path", "C:/fake/cv.pdf"
-        ), patch("app.config.settings.hellowork_login", "user@example.com"), patch(
-            "app.config.settings.hellowork_password", "secret"
-        ), patch("app.config.settings.hellowork_visible", True), patch.dict(
-            sys.modules, {"playwright.async_api": fake_async_api}
-        ):
-            res = self.client.post(f"/candidatures/{cand.id}/auto-apply?dry_run=true")
-
-        self.assertEqual(res.status_code, 200)
-        body = res.json()
-        self.assertTrue(body["success"])
-        self.assertIn("Dry-run", body["message"])
-
     def test_bulk_generate_lm_returns_success_for_all(self):
         offer1 = self._insert_offer(title="Data Analyst 1")
         offer2 = self._insert_offer(title="Data Analyst 2")

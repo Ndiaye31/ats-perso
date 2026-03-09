@@ -40,7 +40,7 @@ def _detect_mode(offer: Offer) -> str:
         return "portail_tiers"
     if offer.url and any(
         domain in offer.url
-        for domain in ("emploi-territorial.fr", "emploi.fhf.fr", "fhf.fr", "hellowork.com")
+        for domain in ("emploi-territorial.fr", "emploi.fhf.fr", "fhf.fr")
     ):
         return "plateforme"
     if offer.contact_email:
@@ -438,9 +438,6 @@ def _get_applicator(offer_url: str):
         return EmploiFHFApplicator()
     if "beetween.com" in offer_url:
         return BeetweenApplicator()
-    if "hellowork.com" in offer_url:
-        from app.automation.hellowork import HelloWorkApplicator
-        return HelloWorkApplicator()
     return None
 
 
@@ -465,22 +462,18 @@ async def _run_step_with_retries(
     return False
 
 
-def _is_hellowork_url(url: str | None) -> bool:
-    return bool(url and "hellowork.com" in url)
-
-
 def _build_browser_config(settings, offer: Offer, apply_url: str) -> tuple[dict, dict]:
     launch_kwargs: dict = {"headless": True}
-    context_kwargs: dict = {}
-    if _is_hellowork_url(offer.url) or _is_hellowork_url(apply_url):
-        storage_state_path = Path(settings.hellowork_storage_state_path)
-        has_saved_state = storage_state_path.exists()
-        launch_kwargs["channel"] = settings.hellowork_browser_channel or "msedge"
-        launch_kwargs["headless"] = bool(settings.hellowork_headless_after_login and has_saved_state and not settings.hellowork_visible)
-        if settings.hellowork_visible or not has_saved_state:
-            launch_kwargs["headless"] = False
-        if has_saved_state:
-            context_kwargs["storage_state"] = str(storage_state_path)
+    context_kwargs: dict = {
+        "user_agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "viewport": {"width": 1280, "height": 900},
+        "locale": "fr-FR",
+        "timezone_id": "Europe/Paris",
+    }
     return launch_kwargs, context_kwargs
 
 
@@ -593,9 +586,6 @@ async def _auto_apply_with_db(
     needs_credentials = True
     if "beetween.com" in apply_url:
         needs_credentials = False
-    elif "hellowork.com" in (offer.url or "") or "hellowork.com" in apply_url:
-        login = settings.hellowork_login
-        password = settings.hellowork_password
     elif "emploi-territorial.fr" in (offer.url or ""):
         login = settings.emploi_territorial_login
         password = settings.emploi_territorial_password
@@ -605,8 +595,6 @@ async def _auto_apply_with_db(
 
     if needs_credentials and (not login or not password):
         action = "Renseigner les identifiants de la plateforme ciblée dans .env."
-        if _is_hellowork_url(offer.url) or _is_hellowork_url(apply_url):
-            action = "Renseigner HELLOWORK_LOGIN et HELLOWORK_PASSWORD dans .env."
         raise HTTPException(
             status_code=503,
             detail=_auto_apply_error(

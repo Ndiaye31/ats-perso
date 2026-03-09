@@ -57,7 +57,9 @@ class BaseApplicator(ABC):
         print(f"[screenshot] Sauvegardé : {path}")
 
     @abstractmethod
-    async def fill_form(self, page, lm_texte: str, cv_path: str) -> bool:
+    async def fill_form(self, page, lm_texte: str, cv_path: str,
+                        profil: dict = None, offer_title: str = "",
+                        offer_company: str = "") -> bool:
         """Remplit le formulaire de candidature (CV + LM)."""
 
     @abstractmethod
