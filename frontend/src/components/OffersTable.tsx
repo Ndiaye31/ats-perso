@@ -480,17 +480,13 @@ export function OffersTable({ onCandidatureCreated }: Props) {
                   {offer.source_name ?? '—'}
                 </td>
                 <td className="hidden px-3 py-2 xl:table-cell">
-                  {offer.url ? (
-                    <button
-                      onClick={() => setFicheOffer(offer)}
-                      title="Voir la fiche"
-                      className="rounded p-1 text-[var(--ui-brand)] transition-colors hover:bg-cyan-50"
-                    >
-                      <FileText size={14} />
-                    </button>
-                  ) : (
-                    <span className="text-gray-300"><FileText size={14} /></span>
-                  )}
+                  <button
+                    onClick={() => setFicheOffer(offer)}
+                    title="Voir la fiche"
+                    className="rounded p-1 text-[var(--ui-brand)] transition-colors hover:bg-cyan-50"
+                  >
+                    <FileText size={14} />
+                  </button>
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
