@@ -29,10 +29,13 @@ _STOP = {
 
 
 def _sig_words(text: str) -> list[str]:
-    """Mots significatifs : >= 4 caractères, hors mots courants."""
+    """Mots significatifs : >= 3 caractères, hors mots courants.
+    3 chars inclut les acronymes utiles (ged, etl, sql, rh…) qui définissent
+    précisément un poste cible. En dessous on tombe sur des articles/prep.
+    """
     return [
         w for w in re.findall(r"[a-zéèêàùîôâûç]+", text.lower())
-        if len(w) >= 4 and w not in _STOP
+        if len(w) >= 3 and w not in _STOP
     ]
 
 
@@ -41,7 +44,9 @@ def _word_in_text(word: str, text: str) -> bool:
     return bool(re.search(r"\b" + re.escape(word) + r"\b", text))
 
 
-MIN_SCORE = 20  # Seuil minimum — offres en dessous ignorées
+MIN_SCORE = 40  # Seuil minimum — offres en dessous ignorées
+# 40 élimine les faux positifs (match description seul + 1 skill = 38pts)
+# Seules les offres avec match titre (50pts) ou match description + 2 skills+ (46pts) passent
 
 
 def _term_in_text(term: str, text: str) -> bool:
@@ -115,12 +120,16 @@ def score_offer(offer: "Offer", profil: dict[str, Any]) -> tuple[int, dict[str, 
     if matched_postes:
         title_score = 50
     elif desc:
+        # Le matching en description exige un ratio plus élevé (ratio_min + 0.15)
+        # pour éviter les faux positifs : une description longue peut accidentellement
+        # contenir 2 mots d'un poste cible ("responsable" + "ged" dans une fiche RH).
+        desc_ratio_min = min(ratio_min + 0.15, 1.0)
         matched_postes_desc: list[str] = []
         for poste in postes:
             words = _sig_words(poste)
             ratio_desc = _coverage_ratio(words, desc)
             best_desc_ratio = max(best_desc_ratio, ratio_desc)
-            if ratio_desc >= ratio_min:
+            if ratio_desc >= desc_ratio_min:
                 matched_postes_desc.append(poste)
         if matched_postes_desc:
             matched_postes = matched_postes_desc
