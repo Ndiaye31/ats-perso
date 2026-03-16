@@ -91,6 +91,10 @@ class CsvImporter:
         cols = self.config.columns
         reader = csv.DictReader(io.StringIO(text), delimiter=self.config.separator)
         offers: list[RawOffer] = []
+        # Set local pour dédupliquer au sein du CSV sans polluer known_hashes.
+        # Si on modifiait known_hashes directement, ingest_raw_offers verrait les
+        # hashes comme "déjà en base" alors qu'ils n'y sont pas encore → inserted=0.
+        seen_in_csv: set[str] = set()
 
         col_title = cols.get("title", "Intitulé du poste")
         col_company = cols.get("company", "Employeur")
@@ -138,9 +142,9 @@ class CsvImporter:
 
             # Dedup via content hash
             h = compute_content_hash(title, company, location)
-            if h in known_hashes:
+            if h in known_hashes or h in seen_in_csv:
                 continue
-            known_hashes.add(h)
+            seen_in_csv.add(h)
 
             offers.append(
                 RawOffer(
