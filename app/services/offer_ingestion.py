@@ -106,16 +106,23 @@ def ingest_raw_offers(
         )
         seen_hashes.add(h)
 
+    # PostgreSQL limite à ~65535 paramètres par requête.
+    # 14 colonnes × 4680 lignes = 65520 → on insère par batches de 500 max.
+    BATCH_SIZE = 500
+
     insert_start = perf_counter()
     if rows_to_insert:
         if db.bind and db.bind.dialect.name == "postgresql":
-            stmt = (
-                pg_insert(Offer.__table__)
-                .values(rows_to_insert)
-                .on_conflict_do_nothing(index_elements=["content_hash"])
-                .returning(Offer.content_hash)
-            )
-            inserted_hashes = [row[0] for row in db.execute(stmt).all()]
+            inserted_hashes = []
+            for i in range(0, len(rows_to_insert), BATCH_SIZE):
+                batch = rows_to_insert[i : i + BATCH_SIZE]
+                stmt = (
+                    pg_insert(Offer.__table__)
+                    .values(batch)
+                    .on_conflict_do_nothing(index_elements=["content_hash"])
+                    .returning(Offer.content_hash)
+                )
+                inserted_hashes += [row[0] for row in db.execute(stmt).all()]
             inserted = len(inserted_hashes)
             seen_hashes.update(inserted_hashes)
         else:
