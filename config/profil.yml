@@ -5,7 +5,7 @@ profil:
   localisation: "Chessy, France"
 
   resume: >
-    Data Analyst avec plus de 3 ans d'expérience en environnement grand compte international,
+    Data Analyst avec plus de 4 ans d'expérience en environnement grand compte international,
     combinant analyse de données, Business Intelligence, visualisation décisionnelle et
     administration SharePoint Online / Microsoft 365. Spécialisé dans la production de KPI,
     l'automatisation du reporting et la diffusion sécurisée de la donnée via des plateformes
@@ -58,7 +58,7 @@ profil:
         - "Adoption accrue des dashboards et espaces collaboratifs"
 
     - poste: "Data Analyst"
-      employeur: "FPT Industrial (CNH Industrial Group)"
+      employeur: "FPT Industrial"
       lieu: "Paris"
       debut: "11/2021"
       fin: "09/2023"

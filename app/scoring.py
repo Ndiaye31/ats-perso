@@ -105,6 +105,9 @@ def score_offer(offer: "Offer", profil: dict[str, Any]) -> tuple[int, dict[str, 
         return 0, details
 
     # Titre (50 pts)
+    # Ratio effectif minimum 0.75 : pour un poste à 3 mots, les 3 doivent être présents.
+    # (ratio_min du profil s'applique si plus strict, sinon plancher à 0.75)
+    effective_ratio = max(ratio_min, 0.75)
     postes = [p.lower() for p in prefs["postes_cibles"]]
     matched_postes: list[str] = []
     best_title_ratio = 0.0
@@ -112,21 +115,25 @@ def score_offer(offer: "Offer", profil: dict[str, Any]) -> tuple[int, dict[str, 
 
     for poste in postes:
         words = _sig_words(poste)
+        # Un poste avec < 2 mots significatifs est trop ambigu pour matcher
+        # Ex : "technicien si" → ["technicien"] → matcherait tout technicien
+        if len(words) < 2:
+            continue
         ratio_title = _coverage_ratio(words, title)
         best_title_ratio = max(best_title_ratio, ratio_title)
-        if ratio_title >= ratio_min:
+        if ratio_title >= effective_ratio:
             matched_postes.append(poste)
 
     if matched_postes:
         title_score = 50
     elif desc:
-        # Le matching en description exige un ratio plus élevé (ratio_min + 0.15)
-        # pour éviter les faux positifs : une description longue peut accidentellement
-        # contenir 2 mots d'un poste cible ("responsable" + "ged" dans une fiche RH).
-        desc_ratio_min = min(ratio_min + 0.15, 1.0)
+        # Description : ratio encore plus strict (effective_ratio + 0.15, min 0.9)
+        desc_ratio_min = min(effective_ratio + 0.15, 1.0)
         matched_postes_desc: list[str] = []
         for poste in postes:
             words = _sig_words(poste)
+            if len(words) < 2:
+                continue
             ratio_desc = _coverage_ratio(words, desc)
             best_desc_ratio = max(best_desc_ratio, ratio_desc)
             if ratio_desc >= desc_ratio_min:
