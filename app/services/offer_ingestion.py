@@ -72,8 +72,7 @@ def ingest_raw_offers(
             content_hash=h,
             source_id=source.id,
         )
-        # Ignorer seulement si aucun moyen de postuler (ni email, ni URL d'aucune sorte)
-        if not raw.email_contact and not raw.candidature_url and not raw.url:
+        if not raw.email_contact and not raw.candidature_url:
             skipped += 1
             seen_hashes.add(h)
             continue
