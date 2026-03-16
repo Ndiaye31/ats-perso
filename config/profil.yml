@@ -115,6 +115,10 @@ profil:
       - "coiffeur"
       - "mécanicien auto"
       - "mecanicien auto"
+      - "téléphonie"
+      - "telephonie"
+      - "géomatique"
+      - "geomatique"
     localisation:
       [
         "Paris",
@@ -124,7 +128,7 @@ profil:
         "Remote",
         "France",
       ]
-    salaire_min: 42000
+    salaire_min: 40000
     postes_cibles:
       # Correspondance directe avec le profil
       - "Data Analyst"
@@ -169,10 +173,7 @@ profil:
       - "Développeur"
       - "Développeur Python"
       - "Développeur web"
-      - "Développeur applicatif"
       - "Ingénieur informatique"
       - "Support informatique"
       - "Administrateur systèmes"
       - "Administrateur base de données"
-      - "Référent informatique"
-      - "Responsable informatique"
