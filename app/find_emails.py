@@ -2,6 +2,7 @@ import requests
 import csv
 import time
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,8 +12,10 @@ load_dotenv()
 # ─────────────────────────────────────────────
 HUNTER_API_KEY = os.getenv("HUNTER_API_KEY")
 
-INPUT_FILE  = "entreprises.csv"
-OUTPUT_FILE = "contacts.csv"
+# Chemins absolus → indépendants du cwd de FastAPI
+BASE_DIR    = Path(__file__).resolve().parent.parent
+INPUT_FILE  = BASE_DIR / "entreprises.csv"
+OUTPUT_FILE = BASE_DIR / "contacts.csv"
 
 # ─────────────────────────────────────────────
 # RECHERCHE EMAIL VIA HUNTER.IO
@@ -76,15 +79,14 @@ def chercher_email(domaine, entreprise=""):
 def main():
     print("\n🔍 Recherche des emails RH via Hunter.io...\n")
 
-    if not os.path.exists(INPUT_FILE):
-        print(f"❌ Fichier '{INPUT_FILE}' introuvable. Lance d'abord scraper_ft.py")
-        return
+    if not INPUT_FILE.exists():
+        raise FileNotFoundError(f"Fichier '{INPUT_FILE}' introuvable — lancez d'abord /spontane/scrape-ft")
 
     contacts = []
     trouves  = 0
     ignores  = 0
 
-    with open(INPUT_FILE, newline="", encoding="utf-8") as f:
+    with open(str(INPUT_FILE), newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         lignes = list(reader)
 
@@ -118,7 +120,7 @@ def main():
         time.sleep(1.0)  # respecter le rate limit Hunter (2 appels possibles par entreprise)
 
     # Sauvegarde
-    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as f:
+    with open(str(OUTPUT_FILE), "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["prenom", "nom", "email", "entreprise", "profil", "lieu"])
         writer.writeheader()
         writer.writerows(contacts)

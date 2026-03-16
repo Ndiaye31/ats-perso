@@ -2,6 +2,7 @@ import requests
 import csv
 import time
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 
@@ -13,7 +14,9 @@ load_dotenv()
 CLIENT_ID     = os.getenv("FT_CLIENT_ID")
 CLIENT_SECRET = os.getenv("FT_CLIENT_SECRET")
 
-OUTPUT_FILE = "entreprises.csv"
+# Chemin absolu → indépendant du cwd de FastAPI
+BASE_DIR = Path(__file__).resolve().parent.parent
+OUTPUT_FILE = BASE_DIR / "entreprises.csv"
 
 # Mots-clés et profil associé
 RECHERCHES = [
@@ -117,7 +120,7 @@ def main():
         time.sleep(1)  # pause pour ne pas surcharger l'API
 
     # Sauvegarde CSV
-    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as f:
+    with open(str(OUTPUT_FILE), "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["entreprise", "domaine", "lieu", "profil", "offre"])
         writer.writeheader()
         writer.writerows(entreprises.values())

@@ -17,8 +17,10 @@ from app.profil import load_profil
 router = APIRouter(prefix="/spontane", tags=["spontane"])
 logger = logging.getLogger(__name__)
 
-CONTACTS_FILE = "contacts.csv"
-LOG_FILE = "envois.json"
+# Chemins absolus — mêmes que dans scraper_ft.py / find_emails.py / send_candidatures.py
+BASE_DIR      = Path(__file__).resolve().parent.parent.parent
+CONTACTS_FILE = str(BASE_DIR / "contacts.csv")
+LOG_FILE      = str(BASE_DIR / "envois.json")
 
 PROFIL_LABELS = {
     "data": "Data Analyste",

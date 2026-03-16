@@ -2,17 +2,26 @@ import csv
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from app.email_sender import send_candidature_email
+from app.profil import load_profil
 
 # ─────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────
-CONTACTS_FILE = "contacts.csv"
-LOG_FILE = "envois.json"
+BASE_DIR      = Path(__file__).resolve().parent.parent
+CONTACTS_FILE = BASE_DIR / "contacts.csv"
+LOG_FILE      = BASE_DIR / "envois.json"
+
+# Données du profil pour la signature
+_profil   = load_profil()
+_NOM      = _profil.get("nom", "")
+_TEL      = _profil.get("telephone", "")
+_EMAIL    = _profil.get("email", "")
 
 # ─────────────────────────────────────────────
 # 3 TEMPLATES D'EMAIL
@@ -20,47 +29,50 @@ LOG_FILE = "envois.json"
 TEMPLATES = {
     "data": {
         "sujet": "Candidature – Data Analyste | 4 ans d'expérience",
-        "corps": """Bonjour {prenom},
+        "corps": f"""Bonjour {{prenom}},
 
 Je me permets de vous contacter dans le cadre d'une candidature spontanée pour un poste de Data Analyste.
 
 Fort de 4 ans d'expérience en analyse de données, je maîtrise Python, SQL et Power BI (certifié PL-300) pour transformer des données brutes en insights actionnables.
 
-Je serais ravi d'échanger sur les besoins de {entreprise} dans ce domaine.
+Je serais ravi d'échanger sur les besoins de {{entreprise}} dans ce domaine.
 
 Cordialement,
-[Votre prénom] [Votre nom]
-[Votre téléphone]"""
+{_NOM}
+{_TEL}
+{_EMAIL}"""
     },
 
     "powerbi": {
         "sujet": "Candidature – Consultant Power BI | Certifié PL-300",
-        "corps": """Bonjour {prenom},
+        "corps": f"""Bonjour {{prenom}},
 
 Je vous contacte pour une candidature spontanée au poste de Consultant Power BI.
 
 Certifié PL-300 avec 4 ans d'expérience, j'interviens sur la conception de dashboards, modélisation DAX, dataflows et déploiement en environnement Power BI Service.
 
-N'hésitez pas à me contacter pour discuter d'une opportunité chez {entreprise}.
+N'hésitez pas à me contacter pour discuter d'une opportunité chez {{entreprise}}.
 
 Cordialement,
-[Votre prénom] [Votre nom]
-[Votre téléphone]"""
+{_NOM}
+{_TEL}
+{_EMAIL}"""
     },
 
     "sharepoint": {
         "sujet": "Candidature – Administrateur SharePoint Online | M365",
-        "corps": """Bonjour {prenom},
+        "corps": f"""Bonjour {{prenom}},
 
 Je me permets de vous adresser ma candidature pour un poste d'Administrateur SharePoint Online.
 
 Avec 4 ans d'expérience sur l'écosystème Microsoft 365, j'interviens sur l'administration SharePoint Online, la gestion des permissions, la gouvernance et les migrations.
 
-Je serais heureux d'en discuter avec vous concernant {entreprise}.
+Je serais heureux d'en discuter avec vous concernant {{entreprise}}.
 
 Cordialement,
-[Votre prénom] [Votre nom]
-[Votre téléphone]"""
+{_NOM}
+{_TEL}
+{_EMAIL}"""
     }
 }
 
@@ -68,13 +80,13 @@ Cordialement,
 # CHARGEMENT DU LOG (évite les doublons)
 # ─────────────────────────────────────────────
 def charger_log():
-    if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "r") as f:
+    if LOG_FILE.exists():
+        with open(str(LOG_FILE), "r") as f:
             return json.load(f)
     return {}
 
 def sauvegarder_log(log):
-    with open(LOG_FILE, "w") as f:
+    with open(str(LOG_FILE), "w") as f:
         json.dump(log, f, indent=2, ensure_ascii=False)
 
 # ─────────────────────────────────────────────
@@ -88,7 +100,7 @@ def main():
 
     print("\n🚀 Démarrage de l'envoi des candidatures...\n")
 
-    with open(CONTACTS_FILE, newline="", encoding="utf-8") as f:
+    with open(str(CONTACTS_FILE), newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             email = row["email"].strip()
