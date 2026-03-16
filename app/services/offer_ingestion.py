@@ -54,7 +54,8 @@ def ingest_raw_offers(
             existing = db.query(Offer).filter_by(content_hash=h).first()
             if existing and _enrich_existing_offer(existing, raw):
                 updated += 1
-            skipped += 1
+            else:
+                skipped += 1
             continue
 
         offer = Offer(
@@ -71,13 +72,16 @@ def ingest_raw_offers(
             content_hash=h,
             source_id=source.id,
         )
-        if not raw.email_contact and not raw.candidature_url:
+        # Ignorer seulement si aucun moyen de postuler (ni email, ni URL d'aucune sorte)
+        if not raw.email_contact and not raw.candidature_url and not raw.url:
             skipped += 1
+            seen_hashes.add(h)
             continue
 
         score, details = score_offer(offer, profil)
         if score < MIN_SCORE:
             skipped += 1
+            seen_hashes.add(h)
             continue
 
         offer.score = score

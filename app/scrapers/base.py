@@ -70,6 +70,28 @@ def load_configs() -> list[ScraperConfig]:
             page_start=s.get("page_start", 1),
         )
         for s in data.get("sources", [])
+        if s.get("type", "html") != "csv"
+    ]
+
+
+def load_csv_configs():
+    """Charge les sources CSV depuis config/scrapers.yml."""
+    from app.scrapers.csv_importer import CsvImporterConfig
+
+    with open(CONFIG_PATH, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return [
+        CsvImporterConfig(
+            name=s["name"],
+            csv_url=s["csv_url"],
+            separator=s.get("separator", ","),
+            columns=s.get("columns", {}),
+            dataset_api=s.get("dataset_api"),
+            dataset_page=s.get("dataset_page"),
+            resource_url_pattern=s.get("resource_url_pattern"),
+        )
+        for s in data.get("sources", [])
+        if s.get("type") == "csv"
     ]
 
 

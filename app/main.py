@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from app.config import validate_startup_config
 from app.logging_utils import emit_critical_alert
 from app.scheduler import start_scheduler, stop_scheduler
-from app.routers import health, offers, scrape, scoring, candidatures
+from app.routers import health, offers, scrape, scoring, candidatures, spontane
 
 app = FastAPI(title="mon-ATS", version="0.1.0")
 logger = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ app.include_router(offers.router)
 app.include_router(scrape.router)
 app.include_router(scoring.router)
 app.include_router(candidatures.router)
+app.include_router(spontane.router)
 
 
 @app.on_event("startup")

@@ -54,6 +54,23 @@ sources:
       description: "main"
       email: "a[href^='mailto:']"
 
+  # ✅ CSV hebdomadaire data.gouv.fr (choisirleservicepublic.gouv.fr)
+  - name: choisirleservicepublic.gouv.fr
+    type: csv
+    # Fallback statique si l'API est indisponible
+    csv_url: "https://static.data.gouv.fr/resources/les-offres-diffusees-sur-choisir-le-service-public/20260309-070038/offres-datagouv-20260301.csv"
+    # API JSON data.gouv.fr — retourne directement la liste des ressources CSV avec leur URL et date
+    # data.gouv.fr est une SPA : scraper le HTML ne fonctionne pas
+    dataset_api: "https://www.data.gouv.fr/api/1/datasets/les-offres-diffusees-sur-choisir-le-service-public/"
+    separator: ";"
+    columns:
+      title: "Intitulé du poste"
+      company: "Employeur"
+      company_fallback: "Organisme de rattachement"
+      location: "Localisation du poste"
+      reference: "Référence"
+      description: "Compétences attendues"
+      date_limite: "Date de fin de publication par défaut"
+
   # ⏳ À faire — nécessite l'API France Travail (OAuth2)
   # - name: place-emploi-public.fr
-  # - name: choisirleservicepublic.gouv.fr

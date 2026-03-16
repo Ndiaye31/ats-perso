@@ -207,3 +207,49 @@ export function scrapeAll(): Promise<Record<string, { inserted: number; skipped:
 export function rescoreAll(): Promise<{ scored: number }> {
   return request('/offres/score', { method: 'POST' })
 }
+
+export function spontaneScrapeFT(): Promise<{ entreprises: number }> {
+  return request('/spontane/scrape-ft', { method: 'POST' })
+}
+
+export function spontaneFindEmails(): Promise<{ trouves: number; ignores: number }> {
+  return request('/spontane/find-emails', { method: 'POST' })
+}
+
+export function spontaneSend(): Promise<{ envoyes: number; ignores: number; erreurs: number }> {
+  return request('/spontane/send', { method: 'POST' })
+}
+
+export interface SpontaneContact {
+  prenom: string
+  nom: string
+  email: string
+  entreprise: string
+  profil: string
+  lieu: string
+  envoye: boolean
+}
+
+export function spontaneGetContacts(): Promise<SpontaneContact[]> {
+  return request('/spontane/contacts')
+}
+
+export function spontaneGenerateLM(data: {
+  prenom: string
+  entreprise: string
+  profil: string
+  lieu: string
+}): Promise<{ lm_texte: string }> {
+  return request('/spontane/generate-lm', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function spontaneSendOne(data: {
+  prenom: string
+  nom: string
+  email: string
+  entreprise: string
+  profil: string
+  lm_texte: string
+}): Promise<{ success: boolean; message: string }> {
+  return request('/spontane/send-one', { method: 'POST', body: JSON.stringify(data) })
+}

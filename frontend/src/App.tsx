@@ -5,8 +5,9 @@ import { ScrapeButton } from './components/ScrapeButton'
 import { rescoreAll } from './api'
 import { KpiStrip } from './components/KpiStrip'
 import { PipelineBoard } from './components/PipelineBoard'
+import { SpontanePanel } from './components/SpontanePanel'
 
-type Tab = 'offers' | 'candidatures'
+type Tab = 'offers' | 'candidatures' | 'spontane'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('offers')
@@ -84,6 +85,16 @@ export default function App() {
           >
             Candidatures
           </button>
+          <button
+            onClick={() => setActiveTab('spontane')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'spontane'
+                    ? 'bg-white text-[var(--ui-brand)] shadow-sm'
+                    : 'text-[var(--ui-muted)] hover:text-[var(--ui-text)]'
+            }`}
+          >
+            Spontané
+          </button>
         </div>
 
             <div className="pb-1">
@@ -92,6 +103,9 @@ export default function App() {
           )}
           {activeTab === 'candidatures' && (
             <CandidaturesTable refreshKey={candidatureRefreshKey} />
+          )}
+          {activeTab === 'spontane' && (
+            <SpontanePanel />
           )}
             </div>
           </section>

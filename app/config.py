@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     smtp_email: str = ""       # adresse Gmail expéditrice
     smtp_password: str = ""    # conservé pour fallback SMTP si réseau le permet
 
+    # France Travail API
+    ft_client_id: str = ""
+    ft_client_secret: str = ""
+
+    # Hunter.io
+    hunter_api_key: str = ""
+
     # Gmail API OAuth2 (fonctionne sur tous les réseaux)
     gmail_client_id: str = ""
     gmail_client_secret: str = ""
