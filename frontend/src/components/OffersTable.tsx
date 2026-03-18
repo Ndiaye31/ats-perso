@@ -23,6 +23,7 @@ const MODE_OPTIONS = [
   { value: 'email', label: 'Email' },
   { value: 'fhf', label: 'FHF' },
   { value: 'emploi_territorial', label: 'Emploi-Territorial' },
+  { value: 'choisir-service-public', label: 'Service-Public' },
   { value: 'portail_tiers', label: 'Portail tiers' },
 ]
 const PAGE_SIZE = 20
@@ -68,6 +69,8 @@ export function OffersTable({ onCandidatureCreated }: Props) {
             ? 'emploi.fhf.fr'
             : modeFilter === 'emploi_territorial'
             ? 'emploi-territorial.fr'
+            : modeFilter === 'choisir-service-public'
+            ? 'choisirleservicepublic.gouv.fr'
             : 'all',
         mode:
           modeFilter === 'fhf' || modeFilter === 'emploi_territorial'

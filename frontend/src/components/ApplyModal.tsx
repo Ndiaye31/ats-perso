@@ -11,7 +11,7 @@ interface Props {
   onSuccess: () => void
 }
 
-type Mode = 'email' | 'plateforme' | 'portail_tiers' | 'inconnu'
+type Mode = 'email' | 'plateforme' | 'portail_tiers' | 'choisir-service-public' | 'inconnu'
 
 function getPortalHost(candidatureUrl?: string | null): string {
   if (!candidatureUrl) return ''
@@ -28,12 +28,14 @@ function ModeBadge({ mode, offer }: { mode: Mode; offer: OfferTableItem }) {
     email: 'bg-blue-100 text-blue-700',
     plateforme: 'bg-purple-100 text-purple-700',
     portail_tiers: 'bg-orange-100 text-orange-700',
+    'choisir-service-public': 'bg-teal-100 text-teal-700',
     inconnu: 'bg-slate-100 text-slate-700',
   }
   const labels: Record<Mode, string> = {
     email: '✉ Candidature par email',
     plateforme: `🌐 ${getApplyModeLabel(offer)}`,
     portail_tiers: `🔗 ${getApplyModeLabel(offer)}${offer.candidature_url ? ` — ${getPortalHost(offer.candidature_url)}` : ''}`,
+    'choisir-service-public': '🌐 Service-Public',
     inconnu: `🌐 ${platformName ?? 'Plateforme'}`,
   }
   return (
@@ -44,6 +46,7 @@ function ModeBadge({ mode, offer }: { mode: Mode; offer: OfferTableItem }) {
 }
 
 function detectMode(offer: OfferTableItem): Mode {
+  if (offer.candidature_url?.includes('choisirleservicepublic.gouv.fr')) return 'choisir-service-public'
   if (offer.candidature_url) return 'portail_tiers'
   if (offer.contact_email) return 'email'
   if (offer.url) return 'plateforme'
@@ -63,12 +66,15 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
   const [candidatureId, setCandidatureId] = useState<string | null>(null)
 
   const isAutoSupported =
-    offer.url != null &&
-    !offer.candidature_url &&
+    mode === 'choisir-service-public' ||
     (
-      offer.url.includes('emploi-territorial.fr') ||
-      offer.url.includes('emploi.fhf.fr') ||
-      offer.url.includes('hellowork.com')
+      offer.url != null &&
+      !offer.candidature_url &&
+      (
+        offer.url.includes('emploi-territorial.fr') ||
+        offer.url.includes('emploi.fhf.fr') ||
+        offer.url.includes('hellowork.com')
+      )
     )
 
   const subject = `Candidature — ${offer.title}`
@@ -231,8 +237,8 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
                 )}
               </div>
 
-              {/* Email (mode email seulement) */}
-              {mode === 'email' && (
+              {/* Email (mode email ou CSP avec email de contact) */}
+              {(mode === 'email' || (mode === 'choisir-service-public' && !!offer.contact_email)) && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Email de contact</label>
                   <input
@@ -246,7 +252,7 @@ export function ApplyModal({ offer, onClose, onSuccess }: Props) {
               )}
 
               {/* Rappel CV */}
-              {mode === 'email' && (
+              {(mode === 'email' || (mode === 'choisir-service-public' && !!offer.contact_email)) && (
                 <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-800">
                   <Paperclip size={13} className="mt-0.5 shrink-0" />
                   <span>Pensez à joindre votre CV à l'email — <span className="font-mono">config/cv_amadou_mactar_ndiaye.pdf</span></span>
