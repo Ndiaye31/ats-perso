@@ -46,6 +46,7 @@ def list_offers(
 
 def _mode_expr():
     return case(
+        (Offer.candidature_url.ilike("%choisirleservicepublic.gouv.fr%"), "choisir-service-public"),
         (Offer.candidature_url.isnot(None), "portail_tiers"),
         (Offer.url.ilike("%emploi.fhf.fr%"), "plateforme"),
         (Offer.contact_email.isnot(None), "email"),

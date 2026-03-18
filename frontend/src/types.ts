@@ -68,7 +68,7 @@ export interface Candidature {
   id: string
   offer_id: string
   statut: string
-  mode_candidature: 'email' | 'plateforme' | 'portail_tiers' | 'inconnu'
+  mode_candidature: 'email' | 'plateforme' | 'portail_tiers' | 'choisir-service-public' | 'inconnu'
   lm_texte: string | null
   date_envoi: string | null
   email_contact: string | null

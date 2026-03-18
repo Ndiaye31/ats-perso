@@ -16,6 +16,7 @@ function getPlatformNameFromUrl(url?: string | null): string | null {
   if (!host) return null
   if (host.includes('emploi-territorial.fr')) return 'Emploi-Territorial'
   if (host.includes('emploi.fhf.fr') || host.includes('fhf.fr')) return 'FHF'
+  if (host.includes('choisirleservicepublic.gouv.fr')) return 'Service-Public'
   return null
 }
 
@@ -43,10 +44,14 @@ export function getModeBadgeTone(candidature: Pick<CandidatureWithOffer, 'mode_c
   if (platformName === 'Emploi-Territorial') {
     return 'bg-violet-100 text-violet-800 ring-1 ring-violet-200'
   }
+  if (platformName === 'Service-Public') {
+    return 'bg-teal-100 text-teal-800 ring-1 ring-teal-200'
+  }
   return 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'
 }
 
 export function getApplyModeLabel(offer: Pick<OfferTableItem, 'url' | 'candidature_url' | 'contact_email'>): string {
+  if (offer.candidature_url?.includes('choisirleservicepublic.gouv.fr')) return 'Service-Public'
   if (offer.candidature_url) {
     const platformName = getPlatformNameFromUrl(offer.candidature_url)
     return platformName ? `Portail tiers - ${platformName}` : 'Portail tiers'

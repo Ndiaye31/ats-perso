@@ -45,7 +45,7 @@ def run_optional_batch_job() -> dict:
         ids = db.execute(
             select(Candidature.id)
             .where(Candidature.statut == "brouillon")
-            .where(Candidature.mode_candidature == "plateforme")
+            .where(Candidature.mode_candidature.in_(["plateforme", "choisir-service-public"]))
             .order_by(Candidature.created_at.desc())
             .limit(max(1, settings.scheduler_batch_limit))
         ).scalars().all()

@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     emploi_territorial_password: str = ""
     emploi_fhf_login: str = ""
     emploi_fhf_password: str = ""
+    csp_login: str = ""
+    csp_password: str = ""
     cv_path: str = ""
     diplome_path: str = ""
     auto_apply_step_retries: int = 2

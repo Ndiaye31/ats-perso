@@ -36,6 +36,8 @@ def _detect_mode(offer: Offer) -> str:
     plateforme est prioritaire (upload CV + LM). L'email reste accessible
     comme fallback dans l'interface.
     """
+    if offer.candidature_url and "choisirleservicepublic.gouv.fr" in offer.candidature_url:
+        return "choisir-service-public"
     if offer.candidature_url:
         return "portail_tiers"
     if offer.url and any(
@@ -429,6 +431,7 @@ def _get_applicator(offer_url: str):
     from app.automation.emploi_territorial import EmploiTerritorialApplicator
     from app.automation.emploi_fhf import EmploiFHFApplicator
     from app.automation.beetween import BeetweenApplicator
+    from app.automation.choisir_service_public import ChoisirServicePublicApplicator
 
     if not offer_url:
         return None
@@ -438,6 +441,8 @@ def _get_applicator(offer_url: str):
         return EmploiFHFApplicator()
     if "beetween.com" in offer_url:
         return BeetweenApplicator()
+    if "choisirleservicepublic.gouv.fr" in offer_url:
+        return ChoisirServicePublicApplicator()
     return None
 
 
@@ -586,6 +591,9 @@ async def _auto_apply_with_db(
     needs_credentials = True
     if "beetween.com" in apply_url:
         needs_credentials = False
+    elif "choisirleservicepublic.gouv.fr" in apply_url:
+        login = settings.csp_login
+        password = settings.csp_password
     elif "emploi-territorial.fr" in (offer.url or ""):
         login = settings.emploi_territorial_login
         password = settings.emploi_territorial_password
@@ -682,6 +690,31 @@ async def _auto_apply_with_db(
                 lambda: applicator.find_apply_button(page),
             )
             if not ok:
+                # CSP → portail externe détecté au runtime ?
+                external_url = getattr(applicator, "external_portal_url", None)
+                if external_url:
+                    offer.candidature_url = external_url
+                    candidature.mode_candidature = "portail_tiers"
+                    db.commit()
+                    await context.close()
+                    await browser.close()
+                    log_event(
+                        logger,
+                        logging.INFO,
+                        "candidature_csp_external_portal_detected",
+                        offer_id=candidature.offer_id,
+                        candidature_id=candidature_id,
+                        source=external_url,
+                        duration_ms=round((perf_counter() - start) * 1000, 2),
+                    )
+                    return AutoApplyResponse(
+                        success=False,
+                        message=_auto_apply_error(
+                            "AUTOAPPLY_CSP_EXTERNAL_PORTAL",
+                            f"Candidater manuellement sur : {external_url}",
+                            f"Offre CSP redirige vers portail externe : {external_url}",
+                        ),
+                    )
                 # Fallback email : si le bouton n'existe pas mais qu'un email est dispo
                 fallback_email = candidature.email_contact or (offer.contact_email if offer else None)
                 if fallback_email:
