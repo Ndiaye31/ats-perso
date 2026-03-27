@@ -208,48 +208,92 @@ export function rescoreAll(): Promise<{ scored: number }> {
   return request('/offres/score', { method: 'POST' })
 }
 
-export function spontaneScrapeFT(): Promise<{ entreprises: number }> {
-  return request('/spontane/scrape-ft', { method: 'POST' })
-}
+// ─── Candidatures spontanées (mairies / éducation) ──────────────────────────
 
-export function spontaneFindEmails(): Promise<{ trouves: number; ignores: number }> {
-  return request('/spontane/find-emails', { method: 'POST' })
-}
-
-export function spontaneSend(): Promise<{ envoyes: number; ignores: number; erreurs: number }> {
-  return request('/spontane/send', { method: 'POST' })
-}
-
-export interface SpontaneContact {
-  prenom: string
+export interface CibleSpontanee {
+  id: string
   nom: string
-  email: string
-  entreprise: string
-  profil: string
-  lieu: string
-  envoye: boolean
+  secteur: 'mairies' | 'education'
+  type_organisation: string | null
+  departement: string | null
+  education_type: string | null
+  email: string | null
+  titre_poste: string | null
+  lm_texte: string | null
+  cv_path: string | null
+  statut: 'neuf' | 'prêt' | 'envoyé' | 'erreur'
+  erreur: string | null
+  date_scrape: string | null
+  date_envoi: string | null
 }
 
-export function spontaneGetContacts(): Promise<SpontaneContact[]> {
-  return request('/spontane/contacts')
+export function spontaneScrape(
+  secteur?: string,
+): Promise<{ inseres: number; ignores: number; total: number }> {
+  const qs = secteur ? `?secteur=${secteur}` : ''
+  return request(`/spontane/scrape${qs}`, { method: 'POST' })
 }
 
-export function spontaneGenerateLM(data: {
-  prenom: string
-  entreprise: string
-  profil: string
-  lieu: string
-}): Promise<{ lm_texte: string }> {
-  return request('/spontane/generate-lm', { method: 'POST', body: JSON.stringify(data) })
+export interface CiblesResponse {
+  items: CibleSpontanee[]
+  total: number
+  limit: number
+  offset: number
 }
 
-export function spontaneSendOne(data: {
-  prenom: string
-  nom: string
-  email: string
-  entreprise: string
-  profil: string
-  lm_texte: string
-}): Promise<{ success: boolean; message: string }> {
-  return request('/spontane/send-one', { method: 'POST', body: JSON.stringify(data) })
+export function spontaneGetCibles(params?: {
+  secteur?: string
+  statut?: string
+  avec_email_seulement?: boolean
+  limit?: number
+  offset?: number
+}): Promise<CiblesResponse> {
+  const query = new URLSearchParams()
+  if (params?.secteur) query.set('secteur', params.secteur)
+  if (params?.statut) query.set('statut', params.statut)
+  if (params?.avec_email_seulement) query.set('avec_email_seulement', 'true')
+  query.set('limit', String(params?.limit ?? 100))
+  if (params?.offset) query.set('offset', String(params.offset))
+  const qs = query.toString()
+  return request(`/spontane/cibles${qs ? `?${qs}` : ''}`)
+}
+
+export function spontanePatchLM(id: string, lm_texte: string): Promise<{ statut: string }> {
+  return request(`/spontane/cibles/${id}/lm`, {
+    method: 'PATCH',
+    body: JSON.stringify({ lm_texte }),
+  })
+}
+
+export function spontaneGenerateLMBatch(
+  secteur?: string,
+  limit = 20,
+): Promise<{ generees: number; erreurs: { nom: string; erreur: string }[] }> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (secteur) query.set('secteur', secteur)
+  return request(`/spontane/generate-lm-batch?${query.toString()}`, { method: 'POST' })
+}
+
+export function spontaneGenerateLMForCible(
+  id: string,
+): Promise<{ lm_texte: string; statut: string }> {
+  return request(`/spontane/cibles/${id}/generate-lm`, { method: 'POST' })
+}
+
+export function spontaneSendBatch(params?: {
+  secteur?: string
+  limit?: number
+  dry_run?: boolean
+}): Promise<{ envoyes: number; erreurs: { nom: string; email: string; erreur: string }[]; dry_run: boolean }> {
+  const query = new URLSearchParams()
+  if (params?.secteur) query.set('secteur', params.secteur)
+  if (params?.limit) query.set('limit', String(params.limit))
+  if (params?.dry_run) query.set('dry_run', 'true')
+  return request(`/spontane/send?${query.toString()}`, { method: 'POST' })
+}
+
+export function spontaneSendOne(
+  id: string,
+): Promise<{ success: boolean; email: string; nom: string }> {
+  return request(`/spontane/send-one/${id}`, { method: 'POST' })
 }

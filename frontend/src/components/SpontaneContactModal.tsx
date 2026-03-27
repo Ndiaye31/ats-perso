@@ -1,29 +1,35 @@
 import { useState } from 'react'
 import { X, Wand2, Send, Eye, Pencil, Loader2, Paperclip } from 'lucide-react'
-import type { SpontaneContact } from '../api'
-import { spontaneGenerateLM, spontaneSendOne } from '../api'
+import type { CibleSpontanee } from '../api'
+import { spontaneGenerateLMForCible, spontanePatchLM, spontaneSendOne } from '../api'
 
-const PROFIL_LABELS: Record<string, string> = {
-  data: 'Data Analyste',
-  powerbi: 'Consultant Power BI',
-  sharepoint: 'Administrateur SharePoint Online',
+const SECTEUR_LABELS: Record<string, string> = {
+  mairies:   'Mairie / Collectivité',
+  education: 'Établissement scolaire',
+}
+
+const CV_PAR_SECTEUR: Record<string, string> = {
+  mairies:   'config/cv_mairies.pdf',
+  education: 'config/cv_education.pdf',
 }
 
 interface Props {
-  contact: SpontaneContact
+  cible: CibleSpontanee
   onClose: () => void
   onSent: () => void
 }
 
-export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
+export function SpontaneContactModal({ cible, onClose, onSent }: Props) {
   const [view, setView] = useState<'edit' | 'preview'>('edit')
-  const [lm, setLm] = useState('')
+  const [lm, setLm] = useState(cible.lm_texte ?? '')
+  const [lmDirty, setLmDirty] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [sending, setSending] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
-  const titre = PROFIL_LABELS[contact.profil] ?? contact.profil
-  const subject = `Candidature spontanée – ${titre}`
+  const titrePoste = cible.titre_poste ?? 'Candidature Spontanée'
+  const subject = `Candidature spontanée — ${titrePoste} — ${cible.nom}`
+  const cvLabel = CV_PAR_SECTEUR[cible.secteur] ?? 'config/cv_mairies.pdf'
 
   function showToast(msg: string) {
     setToast(msg)
@@ -33,13 +39,9 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
   async function handleGenerate() {
     setGenerating(true)
     try {
-      const res = await spontaneGenerateLM({
-        prenom: contact.prenom,
-        entreprise: contact.entreprise,
-        profil: contact.profil,
-        lieu: contact.lieu,
-      })
+      const res = await spontaneGenerateLMForCible(cible.id)
       setLm(res.lm_texte)
+      setLmDirty(false)
     } catch (err) {
       showToast(`Erreur génération : ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -49,20 +51,18 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
 
   async function handleSend() {
     if (!lm.trim()) {
-      showToast('Rédigez ou générez une lettre avant d\'envoyer')
+      showToast("Rédigez ou générez une lettre avant d'envoyer")
       return
     }
     setSending(true)
     try {
-      const res = await spontaneSendOne({
-        prenom: contact.prenom,
-        nom: contact.nom,
-        email: contact.email,
-        entreprise: contact.entreprise,
-        profil: contact.profil,
-        lm_texte: lm,
-      })
-      showToast(res.message)
+      // Si la LM a été éditée manuellement, on la sauvegarde avant d'envoyer
+      if (lmDirty) {
+        await spontanePatchLM(cible.id, lm)
+        setLmDirty(false)
+      }
+      await spontaneSendOne(cible.id)
+      showToast(`Email envoyé à ${cible.email}`)
       setTimeout(() => { onSent(); onClose() }, 1500)
     } catch (err) {
       showToast(`Erreur envoi : ${err instanceof Error ? err.message : String(err)}`)
@@ -83,11 +83,11 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
         {/* Header */}
         <div className="flex items-start justify-between gap-2 px-6 py-4 border-b border-gray-200">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-gray-900">
-              {contact.prenom} {contact.nom}
-            </h2>
+            <h2 className="text-base font-semibold text-gray-900 truncate">{cible.nom}</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              {contact.entreprise}{contact.lieu ? ` · ${contact.lieu}` : ''} — <span className="text-[var(--ui-brand)]">{titre}</span>
+              {SECTEUR_LABELS[cible.secteur] ?? cible.secteur}
+              {cible.departement ? ` · Dept. ${cible.departement}` : ''}
+              {cible.type_organisation ? ` — ${cible.type_organisation}` : ''}
             </p>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 text-gray-400 flex-shrink-0">
@@ -97,26 +97,19 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 px-6">
-          <button
-            onClick={() => setView('edit')}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px ${
-              view === 'edit'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Pencil size={12} /> Rédaction
-          </button>
-          <button
-            onClick={() => setView('preview')}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px ${
-              view === 'preview'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Eye size={12} /> Prévisualisation
-          </button>
+          {(['edit', 'preview'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setView(tab)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px ${
+                view === tab
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab === 'edit' ? <><Pencil size={12} /> Rédaction</> : <><Eye size={12} /> Prévisualisation</>}
+            </button>
+          ))}
         </div>
 
         {/* Body */}
@@ -127,7 +120,7 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
                   ✉ Candidature spontanée par email
                 </span>
-                {contact.envoye && (
+                {cible.statut === 'envoyé' && (
                   <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium">
                     ✓ Déjà envoyé
                   </span>
@@ -138,7 +131,7 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
                 <label className="block text-xs font-medium text-gray-700 mb-1">Email de contact</label>
                 <input
                   type="email"
-                  value={contact.email}
+                  value={cible.email ?? ''}
                   readOnly
                   className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm bg-gray-50 text-gray-600"
                 />
@@ -146,7 +139,7 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
 
               <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-800">
                 <Paperclip size={13} className="mt-0.5 shrink-0" />
-                <span>Pensez à joindre votre CV — <span className="font-mono">config/cv_amadou_mactar_ndiaye.pdf</span></span>
+                <span>CV joint automatiquement : <span className="font-mono">{cvLabel}</span></span>
               </div>
 
               <div>
@@ -165,7 +158,7 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
                 </div>
                 <textarea
                   value={lm}
-                  onChange={(e) => setLm(e.target.value)}
+                  onChange={(e) => { setLm(e.target.value); setLmDirty(true) }}
                   rows={10}
                   placeholder="Cliquez sur « Générer avec Claude » ou rédigez votre lettre ici…"
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y font-mono"
@@ -179,11 +172,15 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
               <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 space-y-1.5">
                 <div className="flex gap-2">
                   <span className="text-xs font-medium text-gray-500 w-12 shrink-0 pt-0.5">À :</span>
-                  <span className="text-gray-800">{contact.email}</span>
+                  <span className="text-gray-800">{cible.email}</span>
                 </div>
                 <div className="flex gap-2">
                   <span className="text-xs font-medium text-gray-500 w-12 shrink-0 pt-0.5">Objet :</span>
                   <span className="text-gray-800 font-medium">{subject}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-xs font-medium text-gray-500 w-12 shrink-0 pt-0.5">PJ :</span>
+                  <span className="text-gray-600 font-mono text-xs">{cvLabel}</span>
                 </div>
               </div>
               <div className="px-4 py-4 bg-white">
@@ -198,6 +195,12 @@ export function SpontaneContactModal({ contact, onClose, onSent }: Props) {
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            Fermer
+          </button>
           <button
             onClick={handleSend}
             disabled={sending || !lm.trim()}

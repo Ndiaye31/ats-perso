@@ -62,7 +62,7 @@ export default function App() {
 
       <main className="mx-auto max-w-[1400px] space-y-4 px-4 py-4 sm:px-6 lg:px-8">
         <KpiStrip refreshKey={candidatureRefreshKey} />
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className={`grid gap-4 ${activeTab !== 'spontane' ? 'xl:grid-cols-[minmax(0,1fr)_320px]' : ''}`}>
           <section className="min-w-0 rounded-2xl border border-[var(--ui-border)] bg-white p-4 shadow-sm">
             <div className="mb-4 flex gap-1 rounded-xl bg-[var(--ui-bg-soft)] p-1">
           <button
@@ -109,7 +109,7 @@ export default function App() {
           )}
             </div>
           </section>
-          <PipelineBoard refreshKey={candidatureRefreshKey} />
+          {activeTab !== 'spontane' && <PipelineBoard refreshKey={candidatureRefreshKey} />}
         </div>
       </main>
     </div>
