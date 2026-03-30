@@ -38,3 +38,6 @@ entreprises.csv
 
 # Worktrees Claude Code
 .claude/worktrees/
+
+# Config locale Claude Code
+.claude/settings.local.json
