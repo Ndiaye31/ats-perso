@@ -14,7 +14,25 @@
       "Bash(pip show:*)",
       "Bash(npx tsc:*)",
       "WebSearch",
-      "WebFetch(domain:www.hellowork.com)"
+      "WebFetch(domain:www.hellowork.com)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(rm:*)",
+      "Bash(docker ps:*)",
+      "WebFetch(domain:choisirleservicepublic.gouv.fr)",
+      "WebFetch(domain:francetravail.io)",
+      "WebFetch(domain:www.data.gouv.fr)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:all-api.fr)",
+      "WebFetch(domain:static.data.gouv.fr)",
+      "WebFetch(domain:www.123mairie.fr)",
+      "WebFetch(domain:fr.linkedin.com)",
+      "WebFetch(domain:api.gouv.fr)",
+      "WebFetch(domain:datas.fun)",
+      "Bash(ls:*)",
+      "Bash(docker restart:*)",
+      "Bash(alembic upgrade:*)"
     ]
   }
 }

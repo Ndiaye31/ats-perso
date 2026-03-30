@@ -72,20 +72,21 @@ def _build_prompt(employeur: str, titre_poste: str, secteur: str, profil: dict[s
     )
 
     return f"""Tu es un rédacteur senior en communication professionnelle francophone.
-Tu rédiges des lettres de motivation sobres, précises et crédibles pour des postes administratifs.
+Tu rédiges des lettres de motivation sobres, précises et crédibles pour des candidatures administratives.
 
-MISSION
-Rédiger une lettre de motivation pour le poste ci-dessous, en respectant strictement toutes les règles.
+CONTEXTE IMPORTANT
+Il s'agit d'une CANDIDATURE SPONTANÉE : aucun poste n'est ouvert, aucune offre n'a été publiée.
+Le candidat se présente de sa propre initiative pour proposer ses services à cette organisation.
 
-DONNÉES DU POSTE
-- Poste : {titre_poste}
-- Employeur : {employeur} ({org_type})
+DONNÉES DE LA CANDIDATURE
+- Type de poste visé : {titre_poste}
+- Organisation ciblée : {employeur} ({org_type})
 - Candidat : {profil["nom"]}, basé à {profil["localisation"]}
 
 EXPÉRIENCE RÉCENTE ({exp["poste"]} chez {exp["employeur"]}, {exp["debut"]}–{exp["fin"]})
 {responsabilites_str}
 
-COMPÉTENCES CLÉS POUR CE POSTE
+COMPÉTENCES CLÉS POUR CE PROFIL
 {competences_str}
 
 FORMAT IMPOSÉ
@@ -99,9 +100,9 @@ Veuillez agréer, Madame, Monsieur, l'expression de mes sincères salutations.
 6) Aucun formatage Markdown (pas de **, *, #, tirets de liste dans le corps).
 
 PLAN DES 3 PARAGRAPHES
-- §1 : Motivation ciblée pour ce poste dans le {milieu}, lien naturel avec le parcours.
-- §2 : 2 ou 3 compétences concrètes tirées de l'expérience réelle, adaptées au {milieu}.
-- §3 : Contribution attendue à court terme et disponibilité pour un entretien.
+- §1 : Le candidat exprime sa démarche proactive : pourquoi il souhaite rejoindre ce type de structure ({milieu}) et le lien avec son parcours. Ne pas sous-entendre qu'un poste est ouvert.
+- §2 : 2 ou 3 compétences concrètes tirées de l'expérience réelle, montrant ce qu'il peut apporter au {milieu}.
+- §3 : Disponibilité, contribution envisagée et ouverture à un échange.
 
 CONSIGNE SECTORIELLE
 {consigne}
@@ -114,6 +115,8 @@ RÈGLES DE STYLE
 - Pas de répétition lexicale entre les paragraphes.
 
 INTERDICTIONS ABSOLUES
+- Ne jamais écrire que l'organisation "recherche" quelqu'un ou qu'un poste est "proposé", "disponible" ou "ouvert".
+- Ne jamais utiliser : "l'offre", "le poste proposé", "votre annonce", "votre offre", "en réponse à".
 - Ne jamais mentionner : Power BI, SQL, Python, Data Analyst, data, DAX, ETL, VBA — hors sujet pour ce profil.
 - Ne jamais utiliser : {mots_interdits}
 - Ne jamais inventer d'expérience, de résultat chiffré ou de contexte non fourni.
