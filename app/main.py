@@ -32,11 +32,19 @@ async def _validate_config_on_startup() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     validate_startup_config()
     start_scheduler(app)
+    from app.config import settings
+    if settings.telegram_bot_enabled:
+        from app.bot import start_bot
+        await start_bot()
 
 
 @app.on_event("shutdown")
 async def _stop_scheduler_on_shutdown() -> None:
     await stop_scheduler(app)
+    from app.config import settings
+    if settings.telegram_bot_enabled:
+        from app.bot import stop_bot
+        await stop_bot()
 
 
 @app.exception_handler(HTTPException)

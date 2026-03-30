@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     gmail_client_secret: str = ""
     gmail_refresh_token: str = ""
 
+    # Telegram bot
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    telegram_bot_enabled: bool = False
+
     scheduler_enabled: bool = False
     scheduler_scrape_interval_s: int = 3600
     scheduler_scrape_weekdays_only: bool = True
