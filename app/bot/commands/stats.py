@@ -32,6 +32,8 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         .split()
     )
 
+    sans_email = s.get("sans_email", 0)
+
     lines = [
         "📊 *Candidatures spontanées*",
         "─────────────────────",
@@ -39,7 +41,8 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"✅ Prêt      : {pret}",
         f"📤 Envoyé    : {envoye}",
         f"❌ Erreur    : {erreur}",
-        f"📦 Total     : {total}",
+        f"📧 Total     : {total}  _(avec email)_",
+        f"🚫 Sans email : {sans_email}  _(ignorés)_",
         "─────────────────────",
         f"Progression : {bar_envoye} {pct}",
         f"🏛️ Mairies : {par_secteur.get('mairies', 0)}   🎓 Éduc : {par_secteur.get('education', 0)}",

@@ -20,16 +20,25 @@ def _get_stats_sync() -> dict:
     from app.database import SessionLocal
     db = SessionLocal()
     try:
+        # Stats statut (avec email uniquement — les seules actionnables)
         rows = db.execute(
             select(CibleSpontanee.statut, func.count().label("n"))
+            .where(CibleSpontanee.email.isnot(None))
             .group_by(CibleSpontanee.statut)
         ).all()
         stats = {r.statut: r.n for r in rows}
         stats["total"] = sum(stats.values())
 
-        # Stats par secteur
+        # Nombre sans email (info uniquement)
+        sans_email = db.scalar(
+            select(func.count()).where(CibleSpontanee.email.is_(None))
+        ) or 0
+        stats["sans_email"] = sans_email
+
+        # Stats par secteur (avec email)
         rows_sect = db.execute(
             select(CibleSpontanee.secteur, func.count().label("n"))
+            .where(CibleSpontanee.email.isnot(None))
             .group_by(CibleSpontanee.secteur)
         ).all()
         stats["par_secteur"] = {r.secteur: r.n for r in rows_sect}
@@ -72,7 +81,12 @@ def _list_cibles_sync(
     from app.database import SessionLocal
     db = SessionLocal()
     try:
-        q = select(CibleSpontanee).order_by(CibleSpontanee.created_at.desc()).limit(limit)
+        q = (
+            select(CibleSpontanee)
+            .where(CibleSpontanee.email.isnot(None))  # toujours filtrer sans email
+            .order_by(CibleSpontanee.created_at.desc())
+            .limit(limit)
+        )
         if statut:
             q = q.where(CibleSpontanee.statut == statut)
         if departement:
