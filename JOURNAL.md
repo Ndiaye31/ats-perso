@@ -4,6 +4,155 @@ Suivi chronologique de tout ce qui a été construit, pourquoi, et comment.
 
 ---
 
+## 2026-03-30 — Bot Telegram + améliorations spontané
+
+### feat(bot) : bot Telegram pour piloter le pipeline candidatures spontanées
+
+**Commits :** `a01915f` → `8237ea3` → `33e9f51` → `5360851` — branche `mactar`
+
+#### Pourquoi
+
+Le pipeline candidatures spontanées (scrape → génération LM → envoi email) était uniquement accessible via l'API REST ou le frontend React. L'objectif était de pouvoir le piloter depuis le téléphone, sans ouvrir l'interface web.
+
+#### Architecture ajoutée
+
+```
+app/bot/
+  __init__.py              # expose start_bot / stop_bot
+  application.py           # construit et câble l'Application PTB
+  auth.py                  # décorateur require_authorized (CHAT_ID allowlist)
+  services.py              # wrappers async → SessionLocal + asyncio.to_thread
+  ui.py                    # utilitaires formatage (emojis, cartes, claviers)
+  commands/
+    stats.py               # /stats, /pipeline
+    targets.py             # /cibles, /lm
+    generate.py            # /generer
+    send.py                # /envoyer_tous
+    scrape.py              # /scraper
+    actions.py             # callbacks inline (detail, lm_view, regen, send_*)
+  conversation/
+    send_flow.py           # /envoyer_un — ConversationHandler multi-étapes
+    cibles_wizard.py       # /cibles — wizard 3 étapes guidé par boutons
+    generer_wizard.py      # /generer_batch — wizard 3 étapes guidé par boutons
+```
+
+**Librairie :** `python-telegram-bot>=20.7` (async natif, compatible FastAPI event loop)
+**Intégration :** même processus FastAPI via `@app.on_event("startup/shutdown")` — pas de nouveau service Docker
+
+#### Commandes disponibles
+
+| Commande | Description |
+|---|---|
+| `/start` | Bienvenue + liste des commandes |
+| `/stats` | Comptage neuf/prêt/envoyé/erreur + progression + répartition secteurs |
+| `/pipeline` | Candidatures classiques par statut |
+| `/cibles` | Wizard 3 étapes : statut → secteur → département → liste cliquable |
+| `/lm <id>` | Affiche la LM (encore supporté, mais /cibles préférable) |
+| `/generer <id>` | Génère la LM pour une cible |
+| `/generer_batch` | Wizard 3 étapes : secteur → département → nombre |
+| `/scraper` | Déclenche le scraping mairies + éducation |
+| `/envoyer_un` | Flow guidé : choisir cible → confirmation → envoi |
+| `/envoyer_tous` | Envoi en masse avec confirmation inline |
+| `/annuler` | Annule toute conversation en cours |
+
+#### UX — navigation inline sans saisie d'ID
+
+- `/cibles` affiche les cibles comme boutons cliquables
+- Clic sur une cible → fiche détail avec actions `[📝 LM]` `[✉️ Envoyer]` `[🔄 Régénérer]` `[◀️ Retour]`
+- Après génération LM → bouton `[✉️ Envoyer]` intégré
+- Emojis statuts : 🆕 neuf · ✅ prêt · 📤 envoyé · ❌ erreur
+- Emojis secteurs : 🏛️ mairies · 🎓 éducation
+
+#### Filtres
+
+- `/cibles` : filtre par statut + secteur + département (ex : `prêt 77 mairies`)
+- `/generer_batch` : filtre par secteur + département
+- Cibles sans email **exclues partout** par défaut (inutilisables)
+
+#### Sécurité
+
+- `TELEGRAM_CHAT_ID` allowlist → seul le propriétaire peut interagir
+- `TELEGRAM_BOT_ENABLED=true/false` pour activer/désactiver
+- `settings.local.json` retiré du tracking git + ajouté au `.gitignore`
+
+---
+
+### chore : améliorations prompt LM spontané
+
+**Commit :** `3151d50`
+
+- Interdictions absolues : ne jamais écrire qu'un poste est "ouvert", "proposé" ou "disponible"
+- Reformulation du plan 3 paragraphes pour une démarche proactive
+- Nouvelles permissions autorisées dans `settings.local.json` (docker, alembic, domaines gouv)
+
+---
+
+## 2026-03-30 — Audit technique objectif
+
+### Ce qui est bien
+
+- **Architecture modulaire** : séparation claire routers / models / services / scrapers / bot
+- **Async cohérent** : `asyncio.to_thread` + `SessionLocal` partout dans le bot (pattern scheduler)
+- **Prompt engineering LM** : règles strictes, exclusions BI/SQL/Python, contextes sectoriels
+- **Gmail API OAuth2** : fonctionne sur tous les réseaux, pas de mot de passe SMTP en clair
+- **Logging structuré** : JSON events avec correlation keys
+- **Bot Telegram** : sécurité CHAT_ID, wizards guidés, navigation inline, filtres multi-critères
+
+### Problèmes identifiés
+
+#### Critiques
+
+| # | Zone | Problème | Impact |
+|---|------|----------|--------|
+| 1 | `app/routers/candidatures.py` | `auto_apply_with_db()` ~400 lignes, nesting 7 niveaux | Impossible à maintenir et tester |
+| 2 | `app/bot/services.py` | `get_cible_by_prefix()` charge toute la table en mémoire puis filtre en Python | Timeout avec 10k+ cibles |
+| 3 | Tous | Zéro tests (unitaires, intégration, API, bot) | Régressions invisibles |
+| 4 | `requirements.txt` | Versions non pinnées (`fastapi` sans version) | Breaking changes silencieux |
+| 5 | `app/main.py` | CORS hardcodé `localhost:5173` | Cassera en production |
+
+#### Moyens
+
+| # | Zone | Problème |
+|---|------|----------|
+| 6 | `app/automation/` | Playwright sans `try/finally` → processes zombies possibles |
+| 7 | `app/ai/lm_spontane.py` | Modèle Claude hardcodé `claude-haiku-4-5-20251001`, non configurable |
+| 8 | API + bot | Pas de rate limiting |
+| 9 | `app/bot/ui.py` | Truncation LM coupe en milieu de phrase (chercher dernier `\n`) |
+| 10 | `docker-compose.yml` | Chemin Windows `C:/Users/macta/...` non portable |
+
+#### Sécurité
+
+| Risque | Statut |
+|--------|--------|
+| `.env` bien dans `.gitignore` | ✅ OK |
+| `settings.local.json` retiré du tracking | ✅ OK |
+| Bot Telegram CHAT_ID allowlist | ✅ OK |
+| CORS trop restrictif pour prod | ⚠️ À corriger |
+| Pas de rate limiting API | ⚠️ À corriger |
+| Playwright sans try/finally | ⚠️ À surveiller |
+
+### Score par zone
+
+| Zone | Score | Note |
+|------|-------|------|
+| Architecture générale | 7/10 | Modulaire, lisible |
+| Backend FastAPI | 6/10 | Manque rate limiting, tests |
+| Pipeline spontané | 7/10 | Fonctionnel, bien structuré |
+| Auto-apply classique | 4/10 | Trop complexe, non testable |
+| AI / Prompt engineering | 7/10 | Bon, mais modèle non configurable |
+| Bot Telegram | 7/10 | UX solide, quelques optimisations à faire |
+| **Global** | **6/10** | **Fonctionnel mais dette technique à résorber** |
+
+### Top 5 actions à prioriser
+
+1. **[CRITIQUE]** Corriger `get_cible_by_prefix()` → requête SQL avec `CAST(id AS TEXT) LIKE 'prefix%'`
+2. **[CRITIQUE]** Splitter `auto_apply_with_db()` en 5+ fonctions
+3. **[HAUTE]** Pinner les versions dans `requirements.txt`
+4. **[HAUTE]** Ajouter au moins des tests de smoke sur les endpoints critiques
+5. **[MOYENNE]** Rendre le modèle Claude configurable via `.env`
+
+---
+
 ## 2026-03-27 — 20h00–22h30
 
 ### feat(spontane) : remplacement France Travail → candidatures spontanées mairies/éducation
