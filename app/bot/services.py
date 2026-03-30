@@ -25,8 +25,15 @@ def _get_stats_sync() -> dict:
             .group_by(CibleSpontanee.statut)
         ).all()
         stats = {r.statut: r.n for r in rows}
-        total = sum(stats.values())
-        return {**stats, "total": total}
+        stats["total"] = sum(stats.values())
+
+        # Stats par secteur
+        rows_sect = db.execute(
+            select(CibleSpontanee.secteur, func.count().label("n"))
+            .group_by(CibleSpontanee.secteur)
+        ).all()
+        stats["par_secteur"] = {r.secteur: r.n for r in rows_sect}
+        return stats
     finally:
         db.close()
 
@@ -56,64 +63,84 @@ async def get_pipeline() -> dict:
 
 # ─── Cibles ───────────────────────────────────────────────────────────────────
 
-def _list_cibles_sync(statut: Optional[str], limit: int) -> list[dict]:
+def _list_cibles_sync(
+    statut: Optional[str],
+    limit: int,
+    departement: Optional[str] = None,
+    secteur: Optional[str] = None,
+) -> list[dict]:
     from app.database import SessionLocal
     db = SessionLocal()
     try:
         q = select(CibleSpontanee).order_by(CibleSpontanee.created_at.desc()).limit(limit)
         if statut:
             q = q.where(CibleSpontanee.statut == statut)
+        if departement:
+            q = q.where(CibleSpontanee.departement == departement)
+        if secteur:
+            q = q.where(CibleSpontanee.secteur == secteur)
         cibles = db.scalars(q).all()
-        return [
-            {
-                "id": str(c.id),
-                "nom": c.nom,
-                "secteur": c.secteur,
-                "email": c.email,
-                "statut": c.statut,
-                "titre_poste": c.titre_poste,
-                "lm_texte": c.lm_texte,
-            }
-            for c in cibles
-        ]
+        return [_cible_to_dict(c) for c in cibles]
     finally:
         db.close()
 
 
-async def list_cibles(statut: Optional[str] = None, limit: int = 15) -> list[dict]:
-    return await asyncio.to_thread(_list_cibles_sync, statut, limit)
+async def list_cibles(
+    statut: Optional[str] = None,
+    limit: int = 15,
+    departement: Optional[str] = None,
+    secteur: Optional[str] = None,
+) -> list[dict]:
+    return await asyncio.to_thread(_list_cibles_sync, statut, limit, departement, secteur)
+
+
+def _get_cible_by_id_sync(cible_id: str) -> Optional[dict]:
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        c = db.get(CibleSpontanee, uuid.UUID(cible_id))
+        return _cible_to_dict(c) if c else None
+    finally:
+        db.close()
+
+
+async def get_cible_by_id(cible_id: str) -> Optional[dict]:
+    return await asyncio.to_thread(_get_cible_by_id_sync, cible_id)
 
 
 def _get_cible_by_prefix_sync(prefix: str) -> Optional[dict]:
     from app.database import SessionLocal
     db = SessionLocal()
     try:
-        # Recherche par préfixe d'UUID (cast en texte)
-        cibles = db.scalars(
-            select(CibleSpontanee)
-        ).all()
+        cibles = db.scalars(select(CibleSpontanee)).all()
         matches = [c for c in cibles if str(c.id).startswith(prefix)]
         if len(matches) == 0:
             return None
         if len(matches) > 1:
             return {"ambiguous": True, "count": len(matches)}
-        c = matches[0]
-        return {
-            "id": str(c.id),
-            "nom": c.nom,
-            "secteur": c.secteur,
-            "email": c.email,
-            "statut": c.statut,
-            "titre_poste": c.titre_poste,
-            "lm_texte": c.lm_texte,
-            "cv_path": c.cv_path,
-        }
+        return _cible_to_dict(matches[0])
     finally:
         db.close()
 
 
 async def get_cible_by_prefix(prefix: str) -> Optional[dict]:
     return await asyncio.to_thread(_get_cible_by_prefix_sync, prefix)
+
+
+def _cible_to_dict(c: CibleSpontanee) -> dict:
+    return {
+        "id": str(c.id),
+        "nom": c.nom,
+        "secteur": c.secteur,
+        "type_organisation": c.type_organisation,
+        "departement": c.departement,
+        "email": c.email,
+        "statut": c.statut,
+        "titre_poste": c.titre_poste,
+        "lm_texte": c.lm_texte,
+        "cv_path": c.cv_path,
+        "date_envoi": c.date_envoi.strftime("%d/%m/%Y") if c.date_envoi else None,
+    }
 
 
 # ─── Génération LM ────────────────────────────────────────────────────────────
@@ -134,7 +161,7 @@ def _generate_lm_for_sync(cible_id: str) -> dict:
         cible.lm_texte = lm
         cible.statut = "prêt"
         db.commit()
-        return {"lm_texte": lm, "nom": cible.nom}
+        return {"lm_texte": lm, "nom": cible.nom, "id": str(cible.id)}
     except Exception as e:
         return {"error": str(e)}
     finally:
@@ -145,19 +172,22 @@ async def generate_lm_for(cible_id: str) -> dict:
     return await asyncio.to_thread(_generate_lm_for_sync, cible_id)
 
 
-def _generate_batch_sync(limit: int) -> dict:
+def _generate_batch_sync(limit: int, departement: Optional[str] = None) -> dict:
     from app.database import SessionLocal
     from app.ai.lm_spontane import generate_lm_spontane
     db = SessionLocal()
     try:
-        cibles = db.scalars(
+        q = (
             select(CibleSpontanee)
             .where(
                 CibleSpontanee.statut == "neuf",
                 CibleSpontanee.email.isnot(None),
             )
             .limit(limit)
-        ).all()
+        )
+        if departement:
+            q = q.where(CibleSpontanee.departement == departement)
+        cibles = db.scalars(q).all()
         generees = 0
         erreurs: list[str] = []
         for cible in cibles:
@@ -178,8 +208,8 @@ def _generate_batch_sync(limit: int) -> dict:
         db.close()
 
 
-async def generate_batch(limit: int = 10) -> dict:
-    return await asyncio.to_thread(_generate_batch_sync, limit)
+async def generate_batch(limit: int = 10, departement: Optional[str] = None) -> dict:
+    return await asyncio.to_thread(_generate_batch_sync, limit, departement)
 
 
 # ─── Envoi email ──────────────────────────────────────────────────────────────
@@ -195,7 +225,7 @@ def _send_one_sync(cible_id: str) -> dict:
         if not cible.email:
             return {"error": "Pas d'email pour cette cible"}
         if not cible.lm_texte:
-            return {"error": "LM non générée — utilisez /generer d'abord"}
+            return {"error": "LM non générée — utilisez Générer LM d'abord"}
 
         titre_poste = cible.titre_poste or "Candidature Spontanée"
         subject = f"Candidature spontanée — {titre_poste} — {cible.nom}"
@@ -212,10 +242,12 @@ def _send_one_sync(cible_id: str) -> dict:
         db.commit()
         return {"success": True, "nom": cible.nom, "email": cible.email}
     except Exception as e:
-        if 'cible' in dir() and cible:
+        try:
             cible.statut = "erreur"
             cible.erreur = str(e)
             db.commit()
+        except Exception:
+            pass
         return {"error": str(e)}
     finally:
         db.close()
@@ -275,9 +307,7 @@ def _run_scrape_sync(secteur: Optional[str]) -> dict:
     from app.database import SessionLocal
     from app.scrapers.mairies import scrape_mairies
     from app.scrapers.education import scrape_education
-    from app.models.cible_spontanee import CibleSpontanee
     from pathlib import Path
-    from datetime import datetime
 
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
     CV_PAR_SECTEUR = {
