@@ -172,7 +172,11 @@ async def generate_lm_for(cible_id: str) -> dict:
     return await asyncio.to_thread(_generate_lm_for_sync, cible_id)
 
 
-def _generate_batch_sync(limit: int, departement: Optional[str] = None) -> dict:
+def _generate_batch_sync(
+    limit: int,
+    departement: Optional[str] = None,
+    secteur: Optional[str] = None,
+) -> dict:
     from app.database import SessionLocal
     from app.ai.lm_spontane import generate_lm_spontane
     db = SessionLocal()
@@ -187,6 +191,8 @@ def _generate_batch_sync(limit: int, departement: Optional[str] = None) -> dict:
         )
         if departement:
             q = q.where(CibleSpontanee.departement == departement)
+        if secteur:
+            q = q.where(CibleSpontanee.secteur == secteur)
         cibles = db.scalars(q).all()
         generees = 0
         erreurs: list[str] = []
@@ -208,8 +214,12 @@ def _generate_batch_sync(limit: int, departement: Optional[str] = None) -> dict:
         db.close()
 
 
-async def generate_batch(limit: int = 10, departement: Optional[str] = None) -> dict:
-    return await asyncio.to_thread(_generate_batch_sync, limit, departement)
+async def generate_batch(
+    limit: int = 10,
+    departement: Optional[str] = None,
+    secteur: Optional[str] = None,
+) -> dict:
+    return await asyncio.to_thread(_generate_batch_sync, limit, departement, secteur)
 
 
 # ─── Envoi email ──────────────────────────────────────────────────────────────

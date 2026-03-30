@@ -22,8 +22,8 @@ _application: Application | None = None
 
 def _build_application() -> Application:
     from app.bot.commands.stats import cmd_stats, cmd_pipeline
-    from app.bot.commands.targets import cmd_cibles, cmd_lm
-    from app.bot.commands.generate import cmd_generer, cmd_generer_batch
+    from app.bot.commands.targets import cmd_lm
+    from app.bot.commands.generate import cmd_generer
     from app.bot.commands.send import cmd_envoyer_tous, confirm_envoyer_tous, CONFIRM_TOUS
     from app.bot.commands.scrape import cmd_scraper
     from app.bot.commands.actions import (
@@ -31,24 +31,15 @@ def _build_application() -> Application:
         handle_send_confirm, handle_send_go, handle_send_cancel, handle_back_list,
     )
     from app.bot.conversation.send_flow import build_send_flow_handler, cancel_handler
+    from app.bot.conversation.cibles_wizard import build_cibles_wizard
+    from app.bot.conversation.generer_wizard import build_generer_wizard
 
     app = Application.builder().token(settings.telegram_bot_token).build()
 
-    # ─── Commandes ────────────────────────────────────────────────────────────
-    app.add_handler(CommandHandler("start", _cmd_start))
-    app.add_handler(CommandHandler("aide", _cmd_start))
-    app.add_handler(CommandHandler("stats", cmd_stats))
-    app.add_handler(CommandHandler("pipeline", cmd_pipeline))
-    app.add_handler(CommandHandler("cibles", cmd_cibles))
-    app.add_handler(CommandHandler("lm", cmd_lm))
-    app.add_handler(CommandHandler("generer", cmd_generer))
-    app.add_handler(CommandHandler("generer_batch", cmd_generer_batch))
-    app.add_handler(CommandHandler("scraper", cmd_scraper))
-    app.add_handler(CommandHandler("annuler", cancel_handler))
-
-    # ─── Conversations ────────────────────────────────────────────────────────
+    # ─── Wizards (ConversationHandlers — priorité haute, enregistrés en premier)
+    app.add_handler(build_cibles_wizard())
+    app.add_handler(build_generer_wizard())
     app.add_handler(build_send_flow_handler())
-
     app.add_handler(
         ConversationHandler(
             entry_points=[CommandHandler("envoyer_tous", cmd_envoyer_tous)],
@@ -60,6 +51,16 @@ def _build_application() -> Application:
             fallbacks=[CommandHandler("annuler", cancel_handler)],
         )
     )
+
+    # ─── Commandes simples ────────────────────────────────────────────────────
+    app.add_handler(CommandHandler("start", _cmd_start))
+    app.add_handler(CommandHandler("aide", _cmd_start))
+    app.add_handler(CommandHandler("stats", cmd_stats))
+    app.add_handler(CommandHandler("pipeline", cmd_pipeline))
+    app.add_handler(CommandHandler("lm", cmd_lm))
+    app.add_handler(CommandHandler("generer", cmd_generer))
+    app.add_handler(CommandHandler("scraper", cmd_scraper))
+    app.add_handler(CommandHandler("annuler", cancel_handler))
 
     # ─── Callbacks inline (navigation sans saisie d'ID) ───────────────────────
     app.add_handler(CallbackQueryHandler(handle_detail,       pattern=r"^detail:"))
